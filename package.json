@@ -1,0 +1,16 @@
+{
+  "name": "safety-school",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test",
+    "validate:content": "node engine/content.js",
+    "fuzz": "node sim/run.js --fuzz",
+    "simulate": "node sim/run.js",
+    "verify:phase1": "npm test && npm run fuzz && npm run simulate"
+  }
+}

@@ -1,0 +1,297 @@
+{
+  "_meta": {
+    "game": "Safety School",
+    "version": "1.3.0",
+    "note": "AUTHORITATIVE content source. All four complete decks use the closed vocabularies below. Numeric values may be tuned by the Phase 1 simulation; effect types require a versioned rules change.",
+    "disruptionTiming": "A disruption is drawn at year-end Y5, revealed publicly for year N+1 (Admin L3 sees year N+2), and its effects attach to the full following academic year (all 5 rounds plus that year's year-end sequence) unless the effect says otherwise."
+  },
+
+  "effectTypeVocabulary": {
+    "poolMultiplier": "multiplies the annual applicant pool for the year",
+    "upkeepMultiplier": "multiplies all upkeep, applied after cost disease, before Admin L4 discount",
+    "tuitionMultiplier": "multiplies tuition income per round",
+    "yieldMultiplier": "multiplies all recruiting yields (admissions, campaign, program), applied after floors, capped at 1.0",
+    "campaignSpendCap": "overrides every player's campaign spend cap to min(levelCap, value)",
+    "reputationPullExponentDelta": "+1 raises every reputation pull multiplier (rep/50) to the next power; programs with their own exponent override (Business) are unaffected",
+    "athleticsPayoutMultiplier": "multiplies Great season gains and/or Losing season losses (money and reputation; bonus conversions unchanged)",
+    "strainFirstOffensePenalty": "one-time reputation penalty the first round a player is over Academics capacity this year, in addition to normal strain",
+    "raceReward": "one-time reward to the FIRST player meeting the condition this year; simultaneous qualification broken by priority token proximity at the moment of qualification",
+    "programRider": "conditional modifier applying only to players holding the tagged program",
+    "programOpenCostMultiplier": "multiplies the open cost of a tagged program for the year",
+    "poachModifier": "multiplies poach cost and/or poach fraction for the year",
+    "donationMultiplier": "multiplies year-end alumni donation income (base + Engineering bonus; not Public Affairs grants)"
+  },
+
+  "playerCardRules": {
+    "targeting": "Every Fortune/Crisis card declares target: either a fixed department or 'random'. Decks are shuffled and drawn from the top without selection RNG. The engine ALWAYS consumes exactly one target RNG draw, discarding it for fixed-target cards.",
+    "scaling": "Effects marked scalable multiply by the fortune formula (targetLevel+1)/3 or crisis formula (6−targetLevel)/5. Non-scalable effects apply as written. Retention effects remain subject to the 0.92 cap after scaling.",
+    "severityComposition": "Fortune deck: 15 sev-1 / 14 sev-2 / 7 sev-3 (≈40/40/20)."
+  },
+
+  "playerCardEffectVocabulary": {
+    "money": "treasury delta ($M), scalable",
+    "reputation": "reputation delta, scalable",
+    "bonusConversionsThisRound": "students added immediately during Chance, outside pool scaling, before strain and elimination; scalable",
+    "bonusConversionsNextRound": "same, queued for next round, scalable",
+    "retentionDeltaThisYear": "adds to this year's retention rate, scalable, 0.92 cap applies",
+    "campaignYieldFloorBonusNext": "raises the yield floor of the player's next campaign, not scalable",
+    "campaignYieldLockNext": "next campaign yield fixed at value, not scalable",
+    "campaignPullMultiplierNext": "next campaign pull multiplied, not scalable",
+    "campaignBlockedNextRound": "player may not campaign next round (crisis), not scalable",
+    "upkeepRefundFraction": "refund fraction of this round's paid upkeep, not scalable",
+    "temporaryCapacityThisYear": "Academics capacity bonus for this year only, scalable",
+    "donationMultiplierThisYearEnd": "multiplies this year-end's alumni donations, not scalable",
+    "nextCrisisSeverityReduction": "player's next crisis resolves at reduced severity (min 1), not scalable",
+    "extraActionsNextRound": "additional allocation actions next round, not scalable",
+    "treasuryRevealedRounds": "exact treasury shown publicly for N rounds (crisis), not scalable",
+    "recruitingPenaltyNextRound": "multiplies NEXT round's total conversions (crisis; crises resolve after recruiting, so same-round penalties are impossible — see resolution-order.md Step 6 vs Step 8), not scalable",
+    "programRider": "bonus applying only if the named program is held, never scaled"
+  },
+
+  "annualDisruptions": [
+    {
+      "id": "D01",
+      "name": "The Cliff Steepens",
+      "flavor": "A demographer publishes a chart. The chart goes down. Everyone shares the chart. The chart does not care.",
+      "effects": [ { "type": "poolMultiplier", "value": 0.75 } ],
+      "prepHint": "Retention is recruiting you already paid for. Student Affairs and Education hold the line; Nursing doesn't even read the chart."
+    },
+    {
+      "id": "D02",
+      "name": "State Budget 'Realignment'",
+      "flavor": "The governor assures higher education that it remains a top priority, alongside the eleven other top priorities announced this morning.",
+      "effects": [ { "type": "upkeepMultiplier", "value": 1.2 } ],
+      "prepHint": "Bank cash, trim bloat before it starts, or let Admin L4's consultants earn their keep."
+    },
+    {
+      "id": "D03",
+      "name": "Rankings Methodology Overhaul",
+      "flavor": "The magazine has changed its formula. It will not say how. It will say that your number went down.",
+      "effects": [ { "type": "reputationPullExponentDelta", "value": 1 } ],
+      "prepHint": "Reputation now compounds: (rep/50) becomes (rep/50)². Above 50 you're amplified; below 50 you're invisible. Pump reputation the year before — or hide behind Nursing, which never reads the rankings."
+    },
+    {
+      "id": "D04",
+      "name": "Financial Aid Portal 'Modernization'",
+      "flavor": "The new form is simpler. It is also unavailable. Families are advised to try again during a full moon.",
+      "effects": [
+        { "type": "yieldMultiplier", "value": 0.8 },
+        { "type": "campaignSpendCap", "value": 4 }
+      ],
+      "prepHint": "Every yield takes a 20% haircut and big Marketing pushes are pointless. A stable Admissions floor is the whole game this year."
+    },
+    {
+      "id": "D05",
+      "name": "Conference Realignment",
+      "flavor": "Your century-old rivalry is dissolved effective immediately. Your new rival is nine hundred miles away and has a television deal.",
+      "effects": [ { "type": "athleticsPayoutMultiplier", "great": 2.0, "losing": 2.0 } ],
+      "prepHint": "Athletics stakes double in both directions. Go big before the season, or divest and watch the carnage from the quad."
+    },
+    {
+      "id": "D06",
+      "name": "Accreditation Review Year",
+      "flavor": "The site visit team has arrived. They would like to see documentation. They would like to see all of the documentation.",
+      "effects": [ { "type": "strainFirstOffensePenalty", "value": 10 } ],
+      "prepHint": "Being over Academics capacity even once this year costs 10 Reputation on the spot. Fix your ratios in advance — the reviewers do not accept vibes."
+    },
+    {
+      "id": "D07",
+      "name": "The Viral Moment",
+      "flavor": "A student's campus tour video has 40 million views. Nobody knows why. Every marketing office in the region is trying to know why.",
+      "effects": [
+        { "type": "raceReward", "condition": { "reputationAtLeast": 65 }, "reward": { "bonusConversions": 600 }, "firstOnly": true }
+      ],
+      "prepHint": "First university to hit 65 Reputation this year catches the wave: +600 students. A race rewards those who started running last year."
+    },
+    {
+      "id": "D08",
+      "name": "National Nursing Shortage",
+      "flavor": "The hospital system three exits down will hire literally anyone you graduate. They have asked us to italicize 'literally.'",
+      "effects": [
+        { "type": "programRider", "program": "nursing", "modifier": { "pullPerRoundBonus": 100 } },
+        { "type": "programOpenCostMultiplier", "program": "nursing", "value": 0.5 }
+      ],
+      "prepHint": "Nursing holders feast (+100 pull/round). Everyone else can open Nursing at half price this year — a one-year door into the cliff-proof business."
+    },
+    {
+      "id": "D09",
+      "name": "Tech Sector Boom",
+      "flavor": "A startup founded in your rival's dorm just sold for two billion dollars. Their commencement speaker is booked through 2031.",
+      "effects": [
+        { "type": "programRider", "program": "business", "modifier": { "pullMultiplier": 1.25 } },
+        { "type": "programRider", "program": "engineering", "modifier": { "donationBonusMultiplier": 2.0 } }
+      ],
+      "prepHint": "Business pull +25%, Engineering's alumni bonus doubles. If you hold neither, this is the year your rivals' brochures write themselves."
+    },
+    {
+      "id": "D10",
+      "name": "The Universal Promise Scholarship",
+      "flavor": "The legislature has made college more affordable by making it less fundable. Applications are up. Revenue is not.",
+      "effects": [
+        { "type": "tuitionMultiplier", "value": 0.9 },
+        { "type": "poolMultiplier", "value": 1.2 }
+      ],
+      "prepHint": "More students, each worth less. A volume year: capacity and retention builds cash in; boutique high-cost builds tighten their belts."
+    },
+    {
+      "id": "D11",
+      "name": "Merger Mania",
+      "flavor": "The consulting firm's report recommends 'strategic consolidation.' The consulting firm bills by the acquisition.",
+      "effects": [ { "type": "poachModifier", "costMultiplier": 0.5, "fractionMultiplier": 2.0 } ],
+      "prepHint": "Poaching costs half and takes double. A knives-out year: don't be the wounded one, and if a rival is bleeding — well. The report did recommend it."
+    },
+    {
+      "id": "D12",
+      "name": "The Charitable Deduction Window",
+      "flavor": "A quirk in the new tax code makes this the best year in a generation to give. Development officers describe the mood as 'feral.'",
+      "effects": [ { "type": "donationMultiplier", "value": 2.0 } ],
+      "prepHint": "Alumni donations double at year-end. Every graduate you produced before now pays twice — the Prestige build's harvest festival."
+    }
+  ],
+
+  "fortuneCards": [
+    { "id": "F01", "target": "admissions", "severity": 1, "name": "The Counselor Whisperer", "flavor": "A high school counselor two counties over has decided you are 'the good one.' She has opinions and a mailing list.", "effects": [ { "type": "bonusConversionsThisRound", "value": 100, "scalable": true } ] },
+    { "id": "F02", "target": "admissions", "severity": 2, "name": "The Yield Model Actually Works", "flavor": "The predictive model was right. Institutional Research has printed the email and framed it.", "effects": [ { "type": "bonusConversionsThisRound", "value": 150, "scalable": true }, { "type": "reputation", "value": 2, "scalable": true } ] },
+    { "id": "F03", "target": "admissions", "severity": 1, "name": "Legacy Family Reunion", "flavor": "The Hendersons have sent a fourth generation, a fifth generation, and a check.", "effects": [ { "type": "money", "value": 1.5, "scalable": true } ] },
+    { "id": "F04", "target": "admissions", "severity": 2, "name": "Common App Glitch (In Your Favor)", "flavor": "A dropdown menu error routed three districts' worth of applications to you. Legal says keep them.", "effects": [ { "type": "bonusConversionsNextRound", "value": 200, "scalable": true } ] },
+    { "id": "F05", "target": "admissions", "severity": 3, "name": "60 Minutes Profiles Your Access Mission", "flavor": "Twelve minutes of prime time about first-generation students. The anchor cried. The phones have not stopped.", "effects": [ { "type": "reputation", "value": 5, "scalable": true }, { "type": "bonusConversionsThisRound", "value": 250, "scalable": true }, { "type": "programRider", "program": "education", "bonus": { "type": "bonusConversionsThisRound", "value": 75 } } ] },
+
+    { "id": "F06", "target": "marketing", "severity": 1, "name": "Billboard Placement Luck", "flavor": "Your billboard is now directly across from your rival's billboard, which is advertising a parking amnesty.", "effects": [ { "type": "campaignYieldFloorBonusNext", "value": 0.1, "scalable": false } ] },
+    { "id": "F07", "target": "marketing", "severity": 2, "name": "Campaign Goes Viral", "flavor": "The intern's 'unhinged' idea worked. The intern would like to discuss compensation.", "effects": [ { "type": "campaignYieldLockNext", "value": 0.8, "scalable": false } ] },
+    { "id": "F08", "target": "marketing", "severity": 1, "name": "Agency Comps the Retainer", "flavor": "The agency made an 'attribution error' in your favor and would prefer you not ask follow-up questions.", "effects": [ { "type": "money", "value": 2, "scalable": true } ] },
+    { "id": "F09", "target": "marketing", "severity": 2, "name": "Mascot Meme Season", "flavor": "The mascot fell down the library steps with tremendous dignity. The internet has adopted him.", "effects": [ { "type": "reputation", "value": 3, "scalable": true }, { "type": "bonusConversionsThisRound", "value": 100, "scalable": true }, { "type": "programRider", "program": "business", "bonus": { "type": "bonusConversionsThisRound", "value": 50 } } ] },
+    { "id": "F10", "target": "marketing", "severity": 3, "name": "Super Bowl Slot at Local Rates", "flavor": "A regional ad buy error means your thirty seconds airs nationally. The agency is 'looking into it' from a beach.", "effects": [ { "type": "campaignPullMultiplierNext", "value": 2.0, "scalable": false } ] },
+
+    { "id": "F11", "target": "academics", "severity": 2, "name": "Star Faculty Hire", "flavor": "She chose you over three flagships because of 'the vibe.' Her grant portfolio arrives Tuesday.", "effects": [ { "type": "money", "value": 3, "scalable": true }, { "type": "reputation", "value": 3, "scalable": true } ] },
+    { "id": "F12", "target": "academics", "severity": 1, "name": "Nobel Shortlist Rumor", "flavor": "Nobody can confirm it. Nobody is trying very hard to deny it. The press release is 'ready either way.'", "effects": [ { "type": "reputation", "value": 2, "scalable": true } ] },
+    { "id": "F13", "target": "academics", "severity": 2, "name": "Federal Grant Renewal", "flavor": "Five more years of funding, awarded specifically for the section of the proposal nobody proofread.", "effects": [ { "type": "money", "value": 4, "scalable": true }, { "type": "programRider", "program": "engineering", "bonus": { "type": "money", "value": 2 } } ] },
+    { "id": "F14", "target": "academics", "severity": 3, "name": "Curriculum Featured in the Times", "flavor": "A columnist calls your core curriculum 'what college is supposed to be.' Deans nationwide are 'circulating it.'", "effects": [ { "type": "reputation", "value": 6, "scalable": true }, { "type": "donationMultiplierThisYearEnd", "value": 1.5, "scalable": false } ] },
+    { "id": "F15", "target": "academics", "severity": 1, "name": "Visiting Scholar Draws Crowds", "flavor": "Her seminar has a waitlist, a livestream, and a bouncer.", "effects": [ { "type": "temporaryCapacityThisYear", "value": 500, "scalable": true } ] },
+
+    { "id": "F16", "target": "studentAffairs", "severity": 1, "name": "Dining Hall Wins an Award", "flavor": "'Best Campus Dining, Regional' — a category that exists and now belongs to you.", "effects": [ { "type": "reputation", "value": 2, "scalable": true }, { "type": "retentionDeltaThisYear", "value": 0.005, "scalable": true } ] },
+    { "id": "F17", "target": "studentAffairs", "severity": 2, "name": "Retention Program Featured Nationally", "flavor": "Your early-alert system is the subject of a webinar attended by every university that will now copy it badly.", "effects": [ { "type": "reputation", "value": 3, "scalable": true }, { "type": "retentionDeltaThisYear", "value": 0.015, "scalable": true } ] },
+    { "id": "F18", "target": "studentAffairs", "severity": 1, "name": "Therapy Dogs, But More", "flavor": "The finals-week puppy room now has a llama. Attendance metrics are 'off the charts and also adorable.'", "effects": [ { "type": "retentionDeltaThisYear", "value": 0.01, "scalable": true } ] },
+    { "id": "F19", "target": "studentAffairs", "severity": 2, "name": "Housing Bond Refinanced", "flavor": "The CFO caught a rate window and has been insufferable about it for three weeks.", "effects": [ { "type": "money", "value": 3, "scalable": true } ] },
+    { "id": "F20", "target": "studentAffairs", "severity": 3, "name": "The RA Who Saved Homecoming", "flavor": "Power outage, rainstorm, one resident assistant with a bullhorn and a plan. There is already a mural.", "effects": [ { "type": "reputation", "value": 5, "scalable": true }, { "type": "retentionDeltaThisYear", "value": 0.025, "scalable": true } ] },
+
+    { "id": "F21", "target": "athletics", "severity": 2, "name": "Booster Whale", "flavor": "He made his fortune in regional waste management and he loves one (1) volleyball team.", "effects": [ { "type": "money", "value": 5, "scalable": true } ] },
+    { "id": "F22", "target": "athletics", "severity": 1, "name": "Walk-On Cinderella Story", "flavor": "She tried out on a dare. She is now the conference player of the week and your best recruiter.", "effects": [ { "type": "reputation", "value": 2, "scalable": true }, { "type": "bonusConversionsThisRound", "value": 50, "scalable": true } ] },
+    { "id": "F23", "target": "athletics", "severity": 1, "name": "Merch Licensing Windfall", "flavor": "The retro logo is back and inexplicably beloved by people who have never attended a game.", "effects": [ { "type": "money", "value": 2, "scalable": true } ] },
+    { "id": "F24", "target": "athletics", "severity": 2, "name": "ESPN Feature Segment", "flavor": "Four minutes of slow-motion footage and a voiceover about 'heart.' Admissions traffic spikes immediately.", "effects": [ { "type": "bonusConversionsThisRound", "value": 200, "scalable": true }, { "type": "reputation", "value": 2, "scalable": true } ] },
+    { "id": "F25", "target": "athletics", "severity": 3, "name": "Season Ticket Miracle", "flavor": "The waitlist has a waitlist. The waitlist's waitlist has a newsletter.", "effects": [ { "type": "money", "value": 6, "scalable": true }, { "type": "reputation", "value": 4, "scalable": true } ] },
+
+    { "id": "F26", "target": "administration", "severity": 1, "name": "Clean Audit", "flavor": "Zero findings. The auditors seem almost disappointed. One of them lingers, hoping.", "effects": [ { "type": "upkeepRefundFraction", "value": 0.5, "scalable": false } ] },
+    { "id": "F27", "target": "administration", "severity": 2, "name": "Insurance Settlement Arrives", "flavor": "The claim from three years ago has settled. Nobody remembers filing it. The check clears anyway.", "effects": [ { "type": "money", "value": 3, "scalable": true } ] },
+    { "id": "F28", "target": "administration", "severity": 2, "name": "Grant Writer on a Heater", "flavor": "Four submissions, four awards. She has asked that no one speak to her, look at her, or change anything about her desk.", "effects": [ { "type": "money", "value": 4, "scalable": true } ] },
+    { "id": "F29", "target": "administration", "severity": 1, "name": "Emergency Drill Goes Perfectly", "flavor": "The tabletop exercise revealed no gaps, which the consultants note has 'never happened before, anywhere.'", "effects": [ { "type": "nextCrisisSeverityReduction", "value": 1, "scalable": false } ] },
+    { "id": "F30", "target": "administration", "severity": 3, "name": "The Provost's Masterstroke", "flavor": "Nobody knows exactly what she did at that conference. Three initiatives unblocked themselves by Friday.", "effects": [ { "type": "extraActionsNextRound", "value": 1, "scalable": false } ] },
+
+    { "id": "F31", "target": "random", "severity": 2, "name": "Unrestricted Bequest", "flavor": "The will says the money goes to 'whatever they're doing best over there.' The lawyers have interpreted generously.", "effects": [ { "type": "money", "value": 3, "scalable": true } ] },
+    { "id": "F32", "target": "random", "severity": 1, "name": "Puff Piece", "flavor": "The local paper needed a feel-good story and you needed the local paper. Everyone wins, journalism included.", "effects": [ { "type": "reputation", "value": 2, "scalable": true } ] },
+    { "id": "F33", "target": "random", "severity": 2, "name": "The Grateful Graduate", "flavor": "He credits one specific office with 'turning his life around' and has attached a number to that feeling.", "effects": [ { "type": "money", "value": 3, "scalable": true }, { "type": "programRider", "program": "publicAffairs", "bonus": { "type": "money", "value": 1 } } ] },
+    { "id": "F34", "target": "random", "severity": 1, "name": "Departmental Newsletter Goes Unreasonably Hard", "flavor": "Whoever writes it has found their voice, and their voice is 'beloved regional institution.'", "effects": [ { "type": "reputation", "value": 2, "scalable": true }, { "type": "money", "value": 1, "scalable": true } ] },
+    { "id": "F35", "target": "random", "severity": 3, "name": "The Forgotten Fund", "flavor": "An endowment from 1961, restricted to a purpose that — upon review — is exactly what this department does.", "effects": [ { "type": "money", "value": 5, "scalable": true } ] },
+    { "id": "F36", "target": "random", "severity": 1, "name": "The Photogenic Quad", "flavor": "The light hit the bell tower. A tour group gasped. Seventeen deposits followed within the hour.", "effects": [ { "type": "bonusConversionsThisRound", "value": 100, "scalable": true } ] }
+  ],
+  "crisisCards": [
+    { "id": "C01", "target": "admissions", "severity": 3, "name": "The Side Door", "flavor": "A celebrity's child was admitted as a coxswain. The university does not have a rowing team. It has never had a rowing team.", "effects": [ { "type": "money", "value": -4, "scalable": true }, { "type": "reputation", "value": -6, "scalable": true } ] },
+    { "id": "C02", "target": "admissions", "severity": 2, "name": "The Wrong Envelope", "flavor": "Five hundred acceptance letters went out in error. The rescission emails went out on a Friday. The screenshots went out immediately.", "effects": [ { "type": "reputation", "value": -3, "scalable": true }, { "type": "recruitingPenaltyNextRound", "value": 0.5, "scalable": false } ] },
+    { "id": "C03", "target": "admissions", "severity": 2, "name": "Tent City", "flavor": "Move-in day exceeded projections. The quad now features 'temporary residential structures' and a photographer from the AP.", "effects": [ { "type": "temporaryCapacityThisYear", "value": -500, "scalable": true }, { "type": "reputation", "value": -2, "scalable": true } ] },
+    { "id": "C04", "target": "admissions", "severity": 1, "name": "The FERPA Fumble", "flavor": "The mail merge attached the spreadsheet. The spreadsheet was the whole spreadsheet.", "effects": [ { "type": "money", "value": -1.5, "scalable": true }, { "type": "reputation", "value": -2, "scalable": true } ] },
+    { "id": "C05", "target": "admissions", "severity": 1, "name": "Summer Melt", "flavor": "The deposited class has been quietly re-evaluating its options, its finances, and your parking situation.", "effects": [ { "type": "recruitingPenaltyNextRound", "value": 0.75, "scalable": false } ] },
+
+    { "id": "C06", "target": "marketing", "severity": 2, "name": "Ad Buy Backfires", "flavor": "Your pre-roll ad ran, exclusively and repeatedly, before a documentary about student debt.", "effects": [ { "type": "money", "value": -2, "scalable": true }, { "type": "campaignBlockedNextRound", "value": 1, "scalable": false } ] },
+    { "id": "C07", "target": "marketing", "severity": 1, "name": "The Stock Photo Incident", "flavor": "The new viewbook's joyful students have been identified. They attend your rival. They are wearing your rival's hoodie.", "effects": [ { "type": "reputation", "value": -2, "scalable": true } ] },
+    { "id": "C08", "target": "marketing", "severity": 2, "name": "The Hashtag Gets Hijacked", "flavor": "#WhyIChose[U] was meant to inspire. It has instead become a genre.", "effects": [ { "type": "reputation", "value": -3, "scalable": true }, { "type": "money", "value": -1, "scalable": true } ] },
+    { "id": "C09", "target": "marketing", "severity": 1, "name": "Typo on the Water Tower", "flavor": "It's been there for six weeks. An alumnus noticed from an airplane.", "effects": [ { "type": "money", "value": -1, "scalable": true }, { "type": "reputation", "value": -1, "scalable": true } ] },
+    { "id": "C10", "target": "marketing", "severity": 3, "name": "Influencer Contract Meltdown", "flavor": "The campus ambassador failed to disclose the sponsorship, then disclosed several other things instead.", "effects": [ { "type": "money", "value": -4, "scalable": true }, { "type": "reputation", "value": -5, "scalable": true }, { "type": "campaignBlockedNextRound", "value": 1, "scalable": false } ] },
+
+    { "id": "C11", "target": "academics", "severity": 2, "name": "The Tenured Tirade", "flavor": "The lecture was recorded. The recording was posted. The phrase 'academic freedom' is doing more work than it was built for.", "effects": [ { "type": "reputation", "value": -4, "scalable": true }, { "type": "retentionDeltaThisYear", "value": -0.01, "scalable": true }, { "type": "programRider", "program": "publicAffairs", "bonus": { "type": "reputation", "value": 2 } } ] },
+    { "id": "C12", "target": "academics", "severity": 3, "name": "Conduct Unbecoming", "flavor": "The investigation substantiated the complaints. The settlement is confidential. The confidentiality is not going well.", "effects": [ { "type": "money", "value": -4, "scalable": true }, { "type": "reputation", "value": -5, "scalable": true } ] },
+    { "id": "C13", "target": "academics", "severity": 2, "name": "The Grade Inflation Exposé", "flavor": "An analysis reveals the median GPA is 3.94. The registrar describes this as 'a strong cohort, nineteen years running.'", "effects": [ { "type": "reputation", "value": -3, "scalable": true }, { "type": "donationMultiplierThisYearEnd", "value": 0.75, "scalable": false } ] },
+    { "id": "C14", "target": "academics", "severity": 1, "name": "Accreditation Paperwork Warning", "flavor": "A formal notice regarding the timely submission of the form confirming the submission of the forms.", "effects": [ { "type": "money", "value": -1.5, "scalable": true }, { "type": "reputation", "value": -1, "scalable": true } ] },
+    { "id": "C15", "target": "academics", "severity": 1, "name": "Adjunct Exodus", "flavor": "Four adjuncts have accepted positions at a warehouse offering, in their words, 'benefits.'", "effects": [ { "type": "temporaryCapacityThisYear", "value": -300, "scalable": true } ] },
+
+    { "id": "C16", "target": "studentAffairs", "severity": 2, "name": "Housing Mold Outbreak", "flavor": "Residents of the third floor describe the ceiling as 'textured' and 'expanding.'", "effects": [ { "type": "money", "value": -2, "scalable": true }, { "type": "retentionDeltaThisYear", "value": -0.01, "scalable": true } ] },
+    { "id": "C17", "target": "studentAffairs", "severity": 1, "name": "The Parking Uprising (Peaceful)", "flavor": "Students have organized. Their demands are reasonable, their signage is excellent, and their grievance is eternal.", "effects": [ { "type": "reputation", "value": -2, "scalable": true } ] },
+    { "id": "C18", "target": "studentAffairs", "severity": 2, "name": "Homecoming Weekend Incident", "flavor": "The official report uses the word 'regrettable' eleven times and the word 'bonfire' zero times, which is itself notable.", "effects": [ { "type": "reputation", "value": -3, "scalable": true }, { "type": "money", "value": -1.5, "scalable": true } ] },
+    { "id": "C19", "target": "studentAffairs", "severity": 1, "name": "Dining Contract Dispute", "flavor": "Negotiations have stalled. The menu has not changed in forty days. The students are keeping count publicly.", "effects": [ { "type": "retentionDeltaThisYear", "value": -0.005, "scalable": true }, { "type": "money", "value": -1, "scalable": true } ] },
+    { "id": "C20", "target": "studentAffairs", "severity": 3, "name": "Residence Hall Condemned", "flavor": "The engineering assessment contains the phrase 'load-bearing in spirit.'", "effects": [ { "type": "money", "value": -5, "scalable": true }, { "type": "retentionDeltaThisYear", "value": -0.02, "scalable": true }, { "type": "reputation", "value": -3, "scalable": true }, { "type": "programRider", "program": "nursing", "bonus": { "type": "money", "value": 1 } } ] },
+
+    { "id": "C21", "target": "athletics", "severity": 2, "name": "Hazing Scandal", "flavor": "The team-building exercise was neither team-building nor, per counsel, an exercise.", "effects": [ { "type": "reputation", "value": -4, "scalable": true }, { "type": "money", "value": -2.5, "scalable": true } ] },
+    { "id": "C22", "target": "athletics", "severity": 1, "name": "Transfer Portal Raid", "flavor": "Your starting lineup has entered the portal. The portal, as ever, only goes one direction.", "effects": [ { "type": "reputation", "value": -2, "scalable": true }, { "type": "money", "value": -1, "scalable": true } ] },
+    { "id": "C23", "target": "athletics", "severity": 2, "name": "The Coach Buyout", "flavor": "He is being paid $3 million to not coach, which observers note is consistent with his prior work.", "effects": [ { "type": "money", "value": -3, "scalable": true } ] },
+    { "id": "C24", "target": "athletics", "severity": 1, "name": "Equipment Recall", "flavor": "The helmets have been recalled. The invoice for the replacement helmets has not been recalled.", "effects": [ { "type": "money", "value": -1.5, "scalable": true } ] },
+    { "id": "C25", "target": "athletics", "severity": 3, "name": "NCAA Investigation", "flavor": "The notice of allegations is 84 pages. The boosters have gone quiet, which the boosters have never once done.", "effects": [ { "type": "money", "value": -4, "scalable": true }, { "type": "reputation", "value": -5, "scalable": true }, { "type": "donationMultiplierThisYearEnd", "value": 0.75, "scalable": false } ] },
+
+    { "id": "C26", "target": "administration", "severity": 2, "name": "Data Breach", "flavor": "The attackers gained access through an invoice titled 'INVOICE (REAL).' The forensics report is unsparing.", "effects": [ { "type": "money", "value": -3, "scalable": true }, { "type": "treasuryRevealedRounds", "value": 2, "scalable": false } ] },
+    { "id": "C27", "target": "administration", "severity": 1, "name": "The Consultants Return", "flavor": "Their final report recommends a follow-up engagement to assess the implementation of the previous report.", "effects": [ { "type": "money", "value": -2, "scalable": true } ] },
+    { "id": "C28", "target": "administration", "severity": 2, "name": "Compliance Audit Findings", "flavor": "Seventeen findings, twelve repeat findings, and one finding about the process for tracking findings.", "effects": [ { "type": "money", "value": -2.5, "scalable": true }, { "type": "reputation", "value": -2, "scalable": true } ] },
+    { "id": "C29", "target": "administration", "severity": 1, "name": "ERP Migration 'Go-Live'", "flavor": "The new system is live. Payroll is 'substantially live.' The old system has been decommissioned out of an abundance of optimism.", "effects": [ { "type": "money", "value": -1.5, "scalable": true }, { "type": "reputation", "value": -1, "scalable": true } ] },
+    { "id": "C30", "target": "administration", "severity": 3, "name": "The Embezzlement", "flavor": "Fourteen years. Small amounts. A beloved figure. A boat named 'Fiscal Year.'", "effects": [ { "type": "money", "value": -5, "scalable": true }, { "type": "reputation", "value": -4, "scalable": true } ] },
+
+    { "id": "C31", "target": "random", "severity": 1, "name": "The Burst Pipe", "flavor": "Facilities describes the building's plumbing as 'original, in every sense.'", "effects": [ { "type": "money", "value": -1.5, "scalable": true } ] },
+    { "id": "C32", "target": "random", "severity": 2, "name": "Poached by a Flagship", "flavor": "The person who actually ran that office has taken a job with a title, a raise, and — witnesses report — free parking.", "effects": [ { "type": "money", "value": -2, "scalable": true }, { "type": "reputation", "value": -2, "scalable": true } ] },
+    { "id": "C33", "target": "random", "severity": 2, "name": "The Settlement", "flavor": "Counsel advises that this outcome, while painful, is 'better than discovery.' Counsel declines to elaborate.", "effects": [ { "type": "money", "value": -3, "scalable": true } ] },
+    { "id": "C34", "target": "random", "severity": 1, "name": "The Anonymous Op-Ed", "flavor": "'I Work There, and I Have Concerns' — published, shared, and printed out by at least one trustee.", "effects": [ { "type": "reputation", "value": -2, "scalable": true } ] },
+    { "id": "C35", "target": "random", "severity": 3, "name": "The Whistleblower", "flavor": "The documents are real. The binder is comprehensive. The tabs are color-coded, which somehow makes it worse.", "effects": [ { "type": "money", "value": -3.5, "scalable": true }, { "type": "reputation", "value": -4, "scalable": true } ] },
+    { "id": "C36", "target": "random", "severity": 1, "name": "The Phishing Test", "flavor": "IT ran a simulated phishing campaign. The click-through rate has been described as 'enthusiastic.'", "effects": [ { "type": "money", "value": -1, "scalable": true }, { "type": "reputation", "value": -1, "scalable": true } ] }
+  ],
+  "headlineRules": {
+    "scope": "Every effect applies to ALL surviving players identically, this round only. No headline may exceed half the impact of a severity-1 card. No-op fraction ≈ 20%.",
+    "effectVocabulary": {
+      "noOp": "nothing happens; flavor only",
+      "tuitionMultiplier": "multiplies tuition income this round",
+      "poolAllotmentMultiplier": "multiplies this round's pool allotment",
+      "allUpkeepMultiplier": "multiplies all upkeep this round",
+      "departmentUpkeepMultiplier": "multiplies one named department's upkeep this round, for everyone",
+      "allPullMultiplier": "multiplies every pull class this round (Nursing included — weather affects everyone)",
+      "campaignPullMultiplier": "multiplies campaign-class pull this round",
+      "programPullMultiplier": "multiplies one named program's pull this round, for all holders",
+      "yieldMultiplier": "multiplies all yields this round, capped at 1.0",
+      "reputationDeltaAll": "reputation delta for every player (±1 max)",
+      "moneyDeltaAll": "flat treasury delta for every player (±0.5 max)",
+      "programMoneyDelta": "flat treasury delta for holders of the named program",
+      "poachCostDelta": "modifies poach cost this round"
+    }
+  },
+
+  "headlines": [
+    { "id": "H01", "name": "Tuition Discount War Escalates", "flavor": "A rival announces a 'Presidential Opportunity Scholarship.' Everyone announces a 'Presidential Opportunity Scholarship.'", "effects": [ { "type": "tuitionMultiplier", "value": 0.95 } ] },
+    { "id": "H02", "name": "Gen Z Suddenly Loves College Again", "flavor": "A survey finds young people value higher education. The survey is laminated and distributed at three separate cabinet meetings.", "effects": [ { "type": "poolAllotmentMultiplier", "value": 1.1 } ] },
+    { "id": "H03", "name": "Statewide Ransomware Wave", "flavor": "Every IT office in the region is 'operating in a heightened posture,' which is expensive posture.", "effects": [ { "type": "departmentUpkeepMultiplier", "department": "administration", "value": 1.5 } ] },
+    { "id": "H04", "name": "'Day in My Life' Trend Hits Campus Content", "flavor": "The algorithm has decided dining halls are cinema. Marketing offices scramble to look effortless.", "effects": [ { "type": "campaignPullMultiplier", "value": 1.15 } ] },
+    { "id": "H05", "name": "National Coaching Carousel", "flavor": "Every coach is rumored for every job. The agents bill hourly for the rumors.", "effects": [ { "type": "departmentUpkeepMultiplier", "department": "athletics", "value": 1.5 } ] },
+    { "id": "H06", "name": "Slow News Week", "flavor": "Nothing happened. Everyone exhales.", "effects": [ { "type": "noOp" } ] },
+    { "id": "H07", "name": "Utility Rates Spike", "flavor": "The grid operator cites 'seasonal factors,' as it does in all four seasons.", "effects": [ { "type": "allUpkeepMultiplier", "value": 1.05 } ] },
+    { "id": "H08", "name": "Mild Winter", "flavor": "Facilities reports the heating budget is 'weirdly fine.' No one trusts it.", "effects": [ { "type": "allUpkeepMultiplier", "value": 0.95 } ] },
+    { "id": "H09", "name": "Rankings Season Anxiety", "flavor": "The lists drop next month. Families nationwide have decided to wait and see, together, all at once.", "effects": [ { "type": "allPullMultiplier", "value": 0.95 } ] },
+    { "id": "H10", "name": "College Fair Circuit Weekend", "flavor": "Four hundred folding tables. Nine thousand tote bags. One shared destiny.", "effects": [ { "type": "poolAllotmentMultiplier", "value": 1.05 } ] },
+    { "id": "H11", "name": "Recession Fears (Again)", "flavor": "Economists are divided. Families are not.", "effects": [ { "type": "yieldMultiplier", "value": 0.95 } ] },
+    { "id": "H12", "name": "Nurses Featured on Every Morning Show", "flavor": "A week of segments about 'the heroes we need.' The heroes need clinical placements.", "effects": [ { "type": "programPullMultiplier", "program": "nursing", "value": 1.15 } ] },
+    { "id": "H13", "name": "Crypto Commencement Speaker Backlash", "flavor": "He spoke about disruption for forty minutes. He has since been disrupted.", "effects": [ { "type": "programPullMultiplier", "program": "business", "value": 0.9 } ] },
+    { "id": "H14", "name": "STEM Hiring Headlines", "flavor": "A chip plant broke ground two hours away and every guidance counselor felt it.", "effects": [ { "type": "programPullMultiplier", "program": "engineering", "value": 1.15 } ] },
+    { "id": "H15", "name": "Teacher Pay Coverage Week", "flavor": "A viral pay-stub screenshot does what forty years of white papers could not, which is also depress everyone.", "effects": [ { "type": "programPullMultiplier", "program": "education", "value": 0.9 } ] },
+    { "id": "H16", "name": "The Humanities, Defended Beautifully", "flavor": "The essay is magnificent. It is shared by everyone, including several people who have read it.", "effects": [ { "type": "programPullMultiplier", "program": "artsAndSciences", "value": 1.1 } ] },
+    { "id": "H17", "name": "State Capitol Photo Op Day", "flavor": "Legislators pose with oversized checks. The checks, unusually, are real, if not oversized.", "effects": [ { "type": "programMoneyDelta", "program": "publicAffairs", "value": 0.3 } ] },
+    { "id": "H18", "name": "Enrollment Cliff Think Piece #4,081", "flavor": "It says what the other 4,080 said, but with a new chart color.", "effects": [ { "type": "noOp" } ] },
+    { "id": "H19", "name": "'Campus Is Back' Local News Segment", "flavor": "B-roll of frisbee. B-roll of lecture. B-roll of a squirrel the anchor calls 'the real dean.'", "effects": [ { "type": "allPullMultiplier", "value": 1.05 } ] },
+    { "id": "H20", "name": "Gas Prices", "flavor": "Somehow, this affects everything, including several things it should not.", "effects": [ { "type": "allUpkeepMultiplier", "value": 1.03 } ] },
+    { "id": "H21", "name": "A Senator Discovers Deans", "flavor": "A thread about administrative bloat, posted from a phone held by a staff of fourteen.", "effects": [ { "type": "reputationDeltaAll", "value": -1 } ] },
+    { "id": "H22", "name": "Graduation Story Goes National", "flavor": "A 74-year-old grandmother finishes her degree and the entire country is briefly nice about higher education.", "effects": [ { "type": "reputationDeltaAll", "value": 1 } ] },
+    { "id": "H23", "name": "FAFSA Works Correctly All Week", "flavor": "Financial aid offices describe the mood as 'suspicious.'", "effects": [ { "type": "yieldMultiplier", "value": 1.05 } ] },
+    { "id": "H24", "name": "Test-Optional Discourse Reignites", "flavor": "Positions are restated. Nothing changes. A panel is convened to discuss the panel.", "effects": [ { "type": "noOp" } ] },
+    { "id": "H25", "name": "Bookstore Buyback Season", "flavor": "The margins on branded fleece remain the healthiest thing on campus.", "effects": [ { "type": "moneyDeltaAll", "value": 0.3 } ] },
+    { "id": "H26", "name": "Surprise Facilities Assessments", "flavor": "A regional inspection sweep finds that every campus has 'deferred maintenance,' a phrase meaning 'maintenance.'", "effects": [ { "type": "moneyDeltaAll", "value": -0.3 } ] },
+    { "id": "H27", "name": "'Is College Worth It?' Podcast Episode", "flavor": "It has 400 listens. Four of them are your board.", "effects": [ { "type": "noOp" } ] },
+    { "id": "H28", "name": "Merger Rumors Swirl", "flavor": "The consulting firms are circling. Due diligence has never been this affordable.", "effects": [ { "type": "poachCostDelta", "value": -1 } ] },
+    { "id": "H29", "name": "Accreditors Announce New Framework", "flavor": "The comment period is open. The comment period will be extended. The comment period outlives us all.", "effects": [ { "type": "noOp" } ] },
+    { "id": "H30", "name": "Alumni Magazine Actually Read This Month", "flavor": "The class notes section mentioned a boat. Envelopes followed.", "effects": [ { "type": "moneyDeltaAll", "value": 0.2 } ] },
+    { "id": "H31", "name": "Rain Ruins Every Campus Tour", "flavor": "The tour guides walk backward through the puddles with unbroken smiles. It is not enough.", "effects": [ { "type": "allPullMultiplier", "value": 0.92 } ] },
+    { "id": "H32", "name": "Perfect Foliage Weekend", "flavor": "The campus photographs itself. Deposits arrive attached to leaf emojis.", "effects": [ { "type": "allPullMultiplier", "value": 1.08 } ] },
+    { "id": "H33", "name": "National Championship Ad Rates", "flavor": "The big game has priced every regional advertiser out of the market, including you, especially you.", "effects": [ { "type": "campaignPullMultiplier", "value": 0.9 } ] },
+    { "id": "H34", "name": "Dorm Tour Videos Trend", "flavor": "Prospective students now evaluate institutions primarily by natural light and outlet count.", "effects": [ { "type": "poolAllotmentMultiplier", "value": 1.05 } ] },
+    { "id": "H35", "name": "No One Checked the Group Chat", "flavor": "A statewide presidents' meeting is rescheduled for the fourth time. Higher education continues unsupervised.", "effects": [ { "type": "noOp" } ] },
+    { "id": "H36", "name": "The Faculty Senate Agenda Is Nine Pages", "flavor": "Item one is approval of the previous minutes. It does not pass.", "effects": [ { "type": "noOp" } ] }
+  ]
+}

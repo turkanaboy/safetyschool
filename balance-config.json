@@ -1,0 +1,236 @@
+{
+  "_meta": {
+    "game": "Safety School",
+    "version": "1.2.0",
+    "note": "AUTHORITATIVE numeric source. The design doc's numbers are illustrative; the engine must read every constant from this file and hardcode nothing. All money values are in millions of dollars ($M) unless suffixed otherwise.",
+    "units": {
+      "money": "millions USD, stored as decimal, rounded to 0.01 at persistence",
+      "students": "integer, floor() after any calculation",
+      "reputation": "integer, clamped [0, 100]",
+      "pull": "applicant units (see recruiting)"
+    }
+  },
+
+  "players": {
+    "min": 2,
+    "max": 5
+  },
+
+  "gameLength": {
+    "roundsPerYear": 5,
+    "maxYears": 6,
+    "athleticsSeasonRound": 3,
+    "yearEndRound": 5
+  },
+
+  "startingState": {
+    "treasury": 50.0,
+    "students": 5000,
+    "reputation": 50,
+    "alumni": 2000,
+    "allDepartmentsLevel": 1,
+    "setupFreeUpgradeLevels": 3,
+    "setupMaxLevelsPerDepartment": 2
+  },
+
+  "economy": {
+    "tuitionPerStudentPerRound": 0.002,
+    "costDiseaseUpkeepMultiplierPerYear": 1.05,
+    "donationPerAlumPerYearBase": 0.001,
+    "donationPerAlumScalesWithDepartment": "academics",
+    "seniorCohortFractionOfStudents": 0.25
+  },
+
+  "departmentCostCurve": {
+    "_comment": "buildCost is cumulative cost to REACH that level from level 1. upkeep is per round at that level, before cost disease and Admin L4 discount.",
+    "buildCostToReachLevel": { "2": 8, "3": 18, "4": 32, "5": 50 },
+    "upkeepAtLevel": { "1": 1, "2": 2, "3": 4, "4": 7, "5": 11 },
+    "costMultipliers": {
+      "athletics": 1.5,
+      "administration": 0.75,
+      "default": 1.0
+    }
+  },
+
+  "departments": {
+    "admissions": {
+      "pullPerLevelPerRound": 150,
+      "baseYield": 0.9,
+      "yieldVariance": 0.0,
+      "upgradeRestriction": "yearEndRoundOnly"
+    },
+    "marketing": {
+      "pullPerMillionSpent": 100,
+      "campaignSpendCapByLevel": { "1": 2, "2": 4, "3": 6, "4": 8, "5": 10 },
+      "campaignYieldMin": 0.4,
+      "campaignYieldMax": 0.8,
+      "campaignYieldFloorBonusPerAdmissionsLevel": 0.05,
+      "_comment": "Effective yield = uniform(min,max) but never below min + admissionsLevel * floorBonus. Marketing has no passive effect at any level."
+    },
+    "academics": {
+      "graduationRateBase": 0.35,
+      "graduationRatePerLevel": 0.08,
+      "studentCapacityPerLevel": 1500,
+      "strainReputationPenaltyPerRound": 2,
+      "strainAnnualRetentionPenaltyPerStrainedRound": 0.006,
+      "_comment": "Retention penalty accumulates: each round spent over capacity subtracts 0.6% from that year's retention (5 strained rounds = -3%, matching design doc)."
+    },
+    "studentAffairs": {
+      "retentionBase": 0.72,
+      "retentionPerLevel": 0.04,
+      "retentionCap": 0.92
+    },
+    "athletics": {
+      "seasonOddsByLevel": {
+        "1": { "great": 0.10, "good": 0.40, "losing": 0.50 },
+        "2": { "great": 0.15, "good": 0.45, "losing": 0.40 },
+        "3": { "great": 0.25, "good": 0.45, "losing": 0.30 },
+        "4": { "great": 0.35, "good": 0.45, "losing": 0.20 },
+        "5": { "great": 0.45, "good": 0.45, "losing": 0.10 }
+      },
+      "greatSeason": { "money": 8, "reputation": 8, "bonusConversionsNextRound": 400 },
+      "goodSeason": { "money": 2, "reputation": 2 },
+      "losingSeason": { "money": -3, "reputation": -3, "drawExtraCrisisTargetedAtAthletics": true }
+    },
+    "administration": {
+      "tiers": {
+        "2": { "crisisSeverityReduction": 1 },
+        "3": { "disruptionForesightExtraYears": 1, "secret": true },
+        "4": { "totalUpkeepDiscount": 0.15 },
+        "5": { "crisisCancelsPerYear": 1 }
+      }
+    }
+  },
+
+  "programs": {
+    "programsEnabled": true,
+    "slotsByAcademicsLevel": { "1": 1, "2": 1, "3": 2, "4": 2, "5": 3 },
+    "closable": false,
+    "defaults": {
+      "yield": 0.9,
+      "subjectToReputationMultiplier": true,
+      "subjectToPoolScaling": true
+    },
+    "catalog": {
+      "nursing": {
+        "openCost": 12, "upkeepPerRound": 2, "pullPerRound": 120,
+        "yield": 1.0, "subjectToReputationMultiplier": false, "subjectToPoolScaling": false
+      },
+      "business": {
+        "openCost": 8, "upkeepPerRound": 1.5, "pullPerRound": 150,
+        "reputationMultiplierOverride": "(reputation / 50) ^ 2"
+      },
+      "artsAndSciences": {
+        "openCost": 7, "upkeepPerRound": 1, "pullPerRound": 100,
+        "academicsCapacityBonus": 1500,
+        "crisisTargetWeightModifiers": { "academics": 2.0 }
+      },
+      "engineering": {
+        "openCost": 15, "upkeepPerRound": 2.5, "pullPerRound": 80,
+        "donationPerAlumBonusPerYear": 0.0005
+      },
+      "education": {
+        "openCost": 5, "upkeepPerRound": 1, "pullPerRound": 60,
+        "annualRetentionBonus": 0.02
+      },
+      "publicAffairs": {
+        "openCost": 6, "upkeepPerRound": 1, "pullPerRound": 40,
+        "annualStateGrantPerAdminLevel": 0.5
+      }
+    },
+    "_comment": "Programs are one-time opens: no levels, no cost-disease on upkeep? NO — program upkeep IS subject to cost disease like all upkeep. Program upkeep is NOT subject to the athletics/admin cost multipliers, and IS reduced by Admin L4 discount. Programs are never targets of per-round chance cards; disruption/card program tags apply conditional riders only."
+  },
+
+  "recruiting": {
+    "annualApplicantPoolByYear": { "1": 30000, "2": 28000, "3": 25000, "4": 21000, "5": 17000, "6": 13000 },
+    "poolAllotmentPerRound": "annualPool / roundsPerYear",
+    "unusedAllotmentCarriesOver": false,
+    "reputationPullMultiplier": "reputation / 50",
+    "scalingRule": "If sum of all players' effective pull > round allotment, scale every player's pull down proportionally. Applicants drawn are removed from nothing (allotment is per-round supply); allotment expires unused.",
+    "eliminatedPlayerInheritance": {
+      "fractionRedistributedToSurvivors": 0.5,
+      "redistributionWeighting": "reputationShare",
+      "fractionLostFromRegion": 0.5
+    }
+  },
+
+  "poaching": {
+    "cost": 3,
+    "targetEligibilityMinStudentsLostThisYear": 300,
+    "fractionOfTargetYearLossesGained": 0.05,
+    "maxPoachActionsPerPlayerPerRound": 1
+  },
+
+  "chanceCards": {
+    "drawsPerPlayerPerRound": { "fortune": 1, "crisis": 1 },
+    "severityDistribution": { "1": 0.4, "2": 0.4, "3": 0.2 },
+    "crisisDamageFormula": "base * (6 - targetLevel) / 5",
+    "fortuneBenefitFormula": "base * (targetLevel + 1) / 3",
+    "targetDepartmentWeighting": "uniform across six departments, modified by any crisisTargetWeightModifiers from held programs (e.g., Arts & Sciences doubles academics weight for that player's crisis draws only)",
+    "deckSizes": { "fortune": 36, "crisis": 36 },
+    "reshuffleWhenEmpty": true
+  },
+
+  "headlines": {
+    "drawsPerRound": 1,
+    "appliesTo": "all surviving players identically, this round only",
+    "magnitudeCap": "0.5 * severity1CardImpact",
+    "deckSize": 36,
+    "noOpFraction": 0.2,
+    "reshuffleWhenEmpty": true
+  },
+
+  "annualDisruptions": {
+    "deckSize": 12,
+    "publicRevealTiming": "final round of prior year",
+    "adminL3RevealTiming": "final round of year N-2 (one extra year, secret)",
+    "noRepeatsWithinGame": true
+  },
+
+  "insolvencyAndElimination": {
+    "austerityTrigger": "treasury < 0 at end-of-round austerity check",
+    "fireSaleRecoveryFraction": 0.4,
+    "forcedFireSaleReputationPenalty": 3,
+    "voluntaryFireSaleReputationPenalty": 0,
+    "fireSaleFloor": "no department may be sold below level 1",
+    "eliminationConditions": [
+      "insolvent after all departments reduced to level 1",
+      "students < 1000 at end of any round"
+    ],
+    "safetyNet": {
+      "name": "State Emergency Appropriation",
+      "amount": 5,
+      "trigger": "lowest treasury among survivors AND treasury < 10, checked at year end",
+      "usesPerPlayerPerGame": 1
+    }
+  },
+
+  "victory": {
+    "primaryWin": "sole surviving university",
+    "tiebreakAtYear6": {
+      "name": "Institutional Health Score",
+      "formula": "treasury/10 + students/100 + reputation + sum(departmentLevels)*5 + alumni/500"
+    },
+    "simultaneousTotalElimination": "highest Institutional Health Score among players eliminated in the final round wins"
+  },
+
+  "simulationAcceptanceCriteria": {
+    "_comment": "Phase 1 Monte Carlo targets. See BUILD-PLAN.md.",
+    "monteCarloGamesMin": 10000,
+    "archetypeWinnerShareMin": 0.15,
+    "archetypeWinnerShareMax": 0.30,
+    "randomWinnerShareMax": 0.08,
+    "medianGameEndRoundMin": 22,
+    "medianGameEndRoundMax": 28,
+    "austerityEscapeRateTarget": 0.25,
+    "austerityEscapeRateTolerance": 0.08,
+    "gamesEndingBeforeRoundMaxExclusive": 16,
+    "gamesEndingBeforeRoundShareMax": 0.15,
+    "gamesReachingYear6TiebreakMax": 0.40,
+    "winningPortfolioProgramShareMin": 0.10,
+    "winningPortfolioProgramShareMax": 0.60,
+    "deterministicReplayRateMin": 1.0,
+    "maxGameRounds": 30,
+    "randomFuzzGamesMin": 1000
+  }
+}
