@@ -11,9 +11,9 @@ const scripted = AGENT_TYPES.filter((type) => type !== 'random');
 test('scripted setup identities match the documented strategy cores', () => {
   const expected = {
     steadyHand: { admissions: 2, studentAffairs: 1 },
-    gambler: { athletics: 2, marketing: 1 },
-    prestigePlay: { academics: 2, administration: 1 },
-    fortress: { studentAffairs: 2, academics: 1 },
+    gambler: { athletics: 2, admissions: 1 },
+    prestigePlay: { academics: 2, admissions: 1 },
+    fortress: { studentAffairs: 2, admissions: 1 },
     oracle: { administration: 2, admissions: 1 },
   };
   for (const type of scripted) {

@@ -979,8 +979,8 @@ function persistSnapshot(state, events) {
   delete payload.resolution;
   payload.pendingDecision = null;
   const bytes = canonicalStringify(payload);
-  state.lastSnapshot = { round: state.round, cursor: state.rng.cursor, digest: digest(payload), bytes };
-  events.push({ type: 'roundSnapshot', ...state.lastSnapshot });
+  state.lastSnapshot = { round: state.round, cursor: state.rng.cursor, digest: digest(payload) };
+  events.push({ type: 'roundSnapshot', ...state.lastSnapshot, bytes });
 }
 
 function finishRound(state, content, events) {

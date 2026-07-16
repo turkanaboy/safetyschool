@@ -1,31 +1,40 @@
 import { DEPARTMENTS } from '../engine/content.js';
 import { createRng, nextRng } from '../engine/rng.js';
 
-export const POLICY_VERSION = '1.0.0';
+export const POLICY_VERSION = '1.5.0';
 export const AGENT_TYPES = Object.freeze([
   'steadyHand', 'gambler', 'prestigePlay', 'fortress', 'oracle', 'random',
 ]);
+
+const CASH_RESERVE = 12;
+const CASH_RESERVES = Object.freeze({
+  steadyHand: 5,
+  gambler: 12,
+  prestigePlay: 12,
+  fortress: 12,
+  oracle: 16,
+});
 
 const POLICIES = Object.freeze({
   steadyHand: {
     setup: { admissions: 2, studentAffairs: 1 },
     build: ['admissions', 'studentAffairs', 'academics', 'administration', 'marketing', 'athletics'],
-    programs: ['education', 'nursing', 'artsAndSciences'],
+    programs: ['education', 'nursing', 'business'],
   },
   gambler: {
-    setup: { athletics: 2, marketing: 1 },
-    build: ['athletics', 'marketing', 'admissions', 'administration', 'studentAffairs', 'academics'],
+    setup: { athletics: 2, admissions: 1 },
+    build: ['admissions', 'studentAffairs', 'administration', 'academics', 'athletics', 'marketing'],
     programs: ['business', 'publicAffairs', 'nursing'],
   },
   prestigePlay: {
-    setup: { academics: 2, administration: 1 },
-    build: ['academics', 'administration', 'studentAffairs', 'admissions', 'marketing', 'athletics'],
-    programs: ['engineering', 'artsAndSciences', 'education'],
+    setup: { academics: 2, admissions: 1 },
+    build: ['admissions', 'academics', 'administration', 'studentAffairs', 'marketing', 'athletics'],
+    programs: ['artsAndSciences', 'engineering', 'education'],
   },
   fortress: {
-    setup: { studentAffairs: 2, academics: 1 },
-    build: ['studentAffairs', 'academics', 'admissions', 'administration', 'marketing', 'athletics'],
-    programs: ['education', 'nursing', 'artsAndSciences'],
+    setup: { studentAffairs: 2, admissions: 1 },
+    build: ['admissions', 'studentAffairs', 'academics', 'administration', 'marketing', 'athletics'],
+    programs: ['nursing', 'education', 'publicAffairs'],
   },
   oracle: {
     setup: { administration: 2, admissions: 1 },
@@ -47,7 +56,8 @@ function chooseScriptedAllocation(type, observation, legal) {
 
   const add = (option) => {
     if (!option || selected.length >= legal.maxActions || usedTypes.has(option.action.type)) return false;
-    if (spend + option.cost > observation.own.treasury + 1e-9) return false;
+    const requiredReserve = option.cost > 0 ? (CASH_RESERVES[type] ?? CASH_RESERVE) : 0;
+    if (spend + option.cost > observation.own.treasury - requiredReserve + 1e-9) return false;
     selected.push(option.action);
     usedTypes.add(option.action.type);
     spend += option.cost;
@@ -61,15 +71,21 @@ function chooseScriptedAllocation(type, observation, legal) {
         || b.recovery - a.recovery)[0]);
   }
 
-  add(policy.build
+  const upgrade = policy.build
     .map((department) => options.find((option) => option.action.type === 'upgrade'
       && option.action.department === department
       && observation.own.departments[department] < 4))
-    .find(Boolean));
-
-  add(policy.programs
+    .find(Boolean);
+  const program = policy.programs
     .map((program) => options.find((option) => option.action.type === 'openProgram' && option.action.program === program))
-    .find(Boolean));
+    .find(Boolean);
+  if (type === 'prestigePlay') {
+    add(program);
+    add(upgrade);
+  } else {
+    add(upgrade);
+    add(program);
+  }
 
   if (observation.own.treasury > 15) add(options.find((option) => option.action.type === 'poach'));
   if (observation.own.treasury > 25) add(options.find((option) => option.action.type === 'campaign'));
@@ -102,7 +118,14 @@ export function createAgent(type, { seed }) {
     const selected = [];
     const types = new Set();
     let spend = 0;
-    const desired = Math.floor(randomValue() * (legal.maxActions + 1));
+    const desired = legal.maxActions;
+    const campaign = candidates.findIndex((option) => option.action.type === 'campaign');
+    if (campaign >= 0) {
+      const [option] = candidates.splice(campaign, 1);
+      selected.push(option.action);
+      types.add(option.action.type);
+      spend += option.cost;
+    }
     while (selected.length < desired && candidates.length > 0) {
       const index = Math.floor(randomValue() * candidates.length);
       const [option] = candidates.splice(index, 1);

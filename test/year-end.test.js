@@ -65,9 +65,13 @@ test('graduation and attrition use floor boundaries and cap retention before str
   const result = play(state);
   const graduation = result.events.find((event) => event.type === 'graduationResolved' && event.playerId === 'p1');
   const attrition = result.events.find((event) => event.type === 'attritionResolved' && event.playerId === 'p1');
-  assert.equal(graduation.seniors, Math.floor(graduation.studentsBefore * 0.25));
-  assert.equal(graduation.graduates, Math.floor(graduation.seniors * (0.35 + 0.08 * 3)));
-  assert.equal(attrition.retention, 0.92 - 2 * 0.006);
+  const academics = content.config.departments.academics;
+  const studentAffairs = content.config.departments.studentAffairs;
+  assert.equal(graduation.seniors, Math.floor(graduation.studentsBefore * content.config.economy.seniorCohortFractionOfStudents));
+  assert.equal(graduation.graduates, Math.floor(graduation.seniors
+    * (academics.graduationRateBase + academics.graduationRatePerLevel * player.departments.academics)));
+  assert.equal(attrition.retention, studentAffairs.retentionCap
+    - player.strainedRounds * academics.strainAnnualRetentionPenaltyPerStrainedRound);
   assert.equal(attrition.studentsAfter, Math.floor(attrition.studentsBefore * attrition.retention));
 });
 
@@ -175,7 +179,7 @@ test('standings precede year-end and the persisted snapshot contains the complet
   const snapshotIndex = result.events.findIndex((event) => event.type === 'roundSnapshot');
   assert.ok(standingsIndex >= 0 && standingsIndex < graduationIndex && graduationIndex < snapshotIndex);
   const snapshot = result.events[snapshotIndex];
-  assert.equal(snapshot.bytes, result.state.lastSnapshot.bytes);
+  assert.equal(snapshot.digest, result.state.lastSnapshot.digest);
   assert.equal(snapshot.cursor, result.state.rng.cursor);
   const payload = JSON.parse(snapshot.bytes);
   assert.equal(payload.round, 5);
