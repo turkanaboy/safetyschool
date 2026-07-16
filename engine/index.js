@@ -1,24 +1,14 @@
 import { canonicalStringify, DEPARTMENTS } from './content.js';
 import { createRng, shuffle } from './rng.js';
+import { resolveRoundThroughRecruiting } from './rules.js';
+
+export { roundMoney } from './rules.js';
 
 export const STATE_SCHEMA_VERSION = 1;
 export const ENGINE_VERSION = '0.1.0';
 
 function assert(condition, path, message) {
   if (!condition) throw new TypeError(`${path}: ${message}`);
-}
-
-export function roundMoney(value) {
-  assert(Number.isFinite(value), 'money', 'must be finite');
-  const scaled = value * 100;
-  const lower = Math.floor(scaled);
-  const fraction = scaled - lower;
-  const epsilon = 1e-9;
-  let rounded;
-  if (fraction < 0.5 - epsilon) rounded = lower;
-  else if (fraction > 0.5 + epsilon) rounded = lower + 1;
-  else rounded = Math.abs(lower % 2) === 0 ? lower : lower + 1;
-  return rounded / 100;
 }
 
 function validatePlayers(players, config) {
@@ -156,4 +146,9 @@ export function createGame({ seed, players, programsEnabled = true }, content) {
 
 export function canonicalStateBytes(state) {
   return canonicalStringify(state);
+}
+
+export function advanceGame(state, command, content) {
+  assertCompatibleContent(state, content);
+  return resolveRoundThroughRecruiting(state, command, content);
 }
