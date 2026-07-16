@@ -95,6 +95,175 @@ export function normalizeHistoryEvents(events, humanId) {
   return normalized;
 }
 
+function departmentCostMultiplier(department, config) {
+  return config.departmentCostCurve.costMultipliers[department]
+    ?? config.departmentCostCurve.costMultipliers.default;
+}
+
+function computedUpgradeCost(level, department, config) {
+  const cumulative = config.departmentCostCurve.buildCostToReachLevel;
+  const current = level === config.startingState.allDepartmentsLevel ? 0 : cumulative[level];
+  return (cumulative[level + 1] - current) * departmentCostMultiplier(department, config);
+}
+
+export function buildingManagement(view, department, content) {
+  if (!Object.hasOwn(view.own.departments, department)) throw new TypeError(`department: unknown ${department}`);
+  const config = content.config;
+  const level = view.own.departments[department];
+  const maxLevel = Math.max(...Object.keys(config.departmentCostCurve.upkeepAtLevel).map(Number));
+  const nextLevel = level < maxLevel ? level + 1 : null;
+  const allocation = view.legal?.kind === 'allocation' ? view.legal : null;
+  const upgrade = allocation?.actions.find((option) => option.action.type === 'upgrade'
+    && option.action.department === department) ?? null;
+  const sell = allocation?.actions.find((option) => option.action.type === 'sell'
+    && option.action.department === department) ?? null;
+  const baseUpkeepChange = nextLevel === null ? 0 : (
+    config.departmentCostCurve.upkeepAtLevel[nextLevel] - config.departmentCostCurve.upkeepAtLevel[level]
+  ) * departmentCostMultiplier(department, config);
+  const upgradeCost = nextLevel === null ? null : (upgrade?.cost ?? computedUpgradeCost(level, department, config));
+
+  let upgradeReason = null;
+  if (nextLevel === null) upgradeReason = 'This department is fully developed at Level 5.';
+  else if (department === 'admissions' && view.roundOfYear !== config.gameLength.yearEndRound) {
+    upgradeReason = `Admissions upgrades are available in Term ${config.gameLength.yearEndRound}.`;
+  } else if (view.phase !== 'allocation') upgradeReason = 'Begin the next term to plan an upgrade.';
+  else if (!upgrade && upgradeCost > view.own.treasury) upgradeReason = 'The current treasury cannot cover this upgrade.';
+  else if (!upgrade) upgradeReason = 'This upgrade is not available in the current term.';
+
+  return {
+    department,
+    level,
+    maxLevel,
+    nextLevel,
+    upgrade,
+    sell,
+    upgradeCost,
+    baseUpkeepChange,
+    upgradeReason,
+  };
+}
+
+function stagedUpkeepChange(action, option, view, config) {
+  if (action.type === 'upgrade') {
+    const level = view.own.departments[action.department];
+    return (config.departmentCostCurve.upkeepAtLevel[level + 1]
+      - config.departmentCostCurve.upkeepAtLevel[level]) * departmentCostMultiplier(action.department, config);
+  }
+  if (action.type === 'sell') return -option.upkeepSaved;
+  if (action.type === 'openProgram') return config.programs.catalog[action.program].upkeepPerRound;
+  return 0;
+}
+
+export function allocationSummary(view, content) {
+  const legal = view.legal?.kind === 'allocation' ? view.legal : null;
+  const maxActions = legal?.maxActions ?? content.config.allocation.maxActionsPerRound;
+  const staged = view.stagedActions.filter(Boolean);
+  let committedSpend = 0;
+  let saleRecovery = 0;
+  let baseUpkeepChange = 0;
+  for (const action of staged) {
+    const option = actionOption(legal, action);
+    if (!option) throw new TypeError('staged action is not currently legal');
+    committedSpend += option.cost;
+    saleRecovery += option.recovery ?? 0;
+    baseUpkeepChange += stagedUpkeepChange(action, option, view, content.config);
+  }
+  return {
+    maxActions,
+    bonusSlots: Math.max(0, maxActions - content.config.allocation.maxActionsPerRound),
+    slots: Array.from({ length: maxActions }, (_, index) => ({
+      index,
+      action: view.stagedActions[index] ? structuredClone(view.stagedActions[index]) : null,
+      bonus: index >= content.config.allocation.maxActionsPerRound,
+    })),
+    committedSpend,
+    saleRecovery,
+    projectedTreasury: view.own.treasury - committedSpend + saleRecovery,
+    baseUpkeepChange,
+    bankSlots: maxActions - staged.length,
+  };
+}
+
+export function programManagement(view, content) {
+  const slotCount = content.config.programs.slotsByAcademicsLevel[view.own.departments.academics];
+  const available = view.legal?.kind === 'allocation'
+    ? view.legal.actions.filter((option) => option.action.type === 'openProgram').map((option) => structuredClone(option))
+    : [];
+  return {
+    slotCount,
+    openSlots: Math.max(0, slotCount - view.own.programs.length),
+    current: view.own.programs.map((program) => ({ program, ...structuredClone(content.config.programs.catalog[program]) })),
+    available,
+  };
+}
+
+export function rivalProfile(view, rivalId) {
+  const rival = view.opponents.find((candidate) => candidate.id === rivalId);
+  if (!rival) throw new TypeError(`rivalId: unknown ${rivalId}`);
+  const identity = view.lineup.find((candidate) => candidate.id === rivalId);
+  const recentEvents = [];
+  for (const entry of view.history) {
+    for (const event of entry.events) {
+      if (event.playerId === rivalId) recentEvents.push(structuredClone(event));
+      if (event.type === 'actionsResolved') {
+        for (const action of event.actions.filter((candidate) => candidate.playerId === rivalId)) {
+          recentEvents.push({ type: 'actionResolved', ...structuredClone(action) });
+        }
+      }
+      if (event.type === 'playersEliminated' && event.playerIds.includes(rivalId)) {
+        recentEvents.push({ type: event.type, playerId: rivalId, stage: event.stage });
+      }
+    }
+  }
+  return {
+    ...structuredClone(rival),
+    archetype: identity.archetype,
+    recentEvents: recentEvents.slice(-8),
+  };
+}
+
+function dumpScore(standing) {
+  const departmentLevels = Object.values(standing.departments).reduce((total, level) => total + level, 0);
+  return standing.students * 0.01 + standing.reputation + departmentLevels * 5
+    + standing.programs.length * 5 + standing.alumni * 0.002;
+}
+
+export function dumpRankings(view) {
+  const names = new Map([[view.own.id, view.own.name], ...view.opponents.map((rival) => [rival.id, rival.name])]);
+  if (!view.standings) {
+    return [view.own, ...view.opponents].map((school) => ({
+      id: school.id,
+      name: school.name,
+      rank: null,
+      score: null,
+      closed: school.active === false,
+    }));
+  }
+  const scored = view.standings.map((standing, index) => ({
+    id: standing.playerId,
+    name: names.get(standing.playerId) ?? standing.playerId,
+    active: standing.active,
+    score: standing.active ? dumpScore(standing) : null,
+    order: index,
+  }));
+  const active = scored.filter((school) => school.active).sort((a, b) => b.score - a.score || a.order - b.order);
+  let previousScore = null;
+  let previousRank = null;
+  active.forEach((school, index) => {
+    school.rank = school.score === previousScore ? previousRank : index + 1;
+    previousScore = school.score;
+    previousRank = school.rank;
+  });
+  return [...active.map(({ active: _active, order: _order, ...school }) => ({ ...school, closed: false })),
+    ...scored.filter((school) => !school.active).map((school) => ({
+      id: school.id,
+      name: school.name,
+      rank: null,
+      score: null,
+      closed: true,
+    }))];
+}
+
 function historyEntry(state, events, humanId) {
   return {
     round: state.round,
@@ -124,7 +293,7 @@ export function createSoloSession({ seed, human, rivalIds, random = Math.random 
     state: created.state,
     human: structuredClone(human),
     rivals,
-    tutorial: { step: 'campus' },
+    tutorial: { setupDismissed: false, allocationDismissed: false },
     history: [],
     stagedActions: [],
     mode: 'playing',
@@ -153,6 +322,10 @@ export function createSoloController({ session: initialSession, content, onTrans
     }
   }
 
+  function notify() {
+    if (onTransition) onTransition(structuredClone(session));
+  }
+
   function apply(command, present = true) {
     commandCount += 1;
     if (commandCount > 300) throw new Error('Solo session exceeded the 300-command safety limit');
@@ -161,7 +334,7 @@ export function createSoloController({ session: initialSession, content, onTrans
     const safeEvents = normalizeHistoryEvents(result.events, humanId);
     session.history.push({ round: session.state.round, events: safeEvents });
     updateMode();
-    if (onTransition) onTransition(structuredClone(session));
+    notify();
     const emittedEvents = structuredClone(safeEvents);
     return {
       events: emittedEvents,
@@ -251,6 +424,11 @@ export function createSoloController({ session: initialSession, content, onTrans
       legal,
       stagedActions: structuredClone(session.stagedActions),
       mode: session.mode,
+      identity: structuredClone(session.human),
+      lineup: session.rivals.map(({ agentSeed: _agentSeed, ...rival }) => structuredClone(rival)),
+      standings: session.state.standings ? structuredClone(session.state.standings) : null,
+      history: structuredClone(session.history),
+      tutorial: structuredClone(session.tutorial),
     };
   }
 
@@ -316,6 +494,13 @@ export function createSoloController({ session: initialSession, content, onTrans
     },
     resume() {
       return aiPending();
+    },
+    dismissTutorial(moment) {
+      if (!['setup', 'allocation'].includes(moment)) throw new TypeError(`tutorial moment: unknown ${moment}`);
+      if (session.tutorial[`${moment}Dismissed`]) return getView();
+      session.tutorial[`${moment}Dismissed`] = true;
+      notify();
+      return getView();
     },
     spectateNext() {
       if (humanPlayer().active || !['eliminationChoice', 'spectating'].includes(session.mode)) {

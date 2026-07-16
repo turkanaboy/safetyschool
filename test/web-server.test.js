@@ -81,18 +81,19 @@ test('play server reports a fixed-origin port conflict instead of falling throug
   }
 });
 
-test('campus workshop exposes six named building plots and atmosphere fixtures', async () => {
+test('campus gameplay shell keeps the approved board and exposes the five management destinations', async () => {
   await withServer(async (port) => {
     const shell = await fetchFrom(port, '/');
     for (const department of ['admissions', 'marketing', 'academics', 'studentAffairs', 'athletics', 'administration']) {
       assert.match(shell.body, new RegExp(`data-department="${department}"`));
     }
-    for (const fixture of ['early', 'prosperous', 'strained', 'austerity']) {
-      assert.match(shell.body, new RegExp(`data-fixture="${fixture}"`));
-    }
     assert.match(shell.body, />Definitive Ultimate Marketing Ploy</);
     assert.equal(shell.body.match(/class="building\b/g)?.length, 6);
-    assert.equal(shell.body.match(/data-building-variant=/g)?.length, 2);
+    for (const section of ['briefing', 'allocate', 'programs', 'rivals', 'boardBook']) {
+      assert.match(shell.body, new RegExp(`data-management-section="${section}"`));
+    }
+    assert.match(shell.body, /id="tray-content"/);
+    assert.match(shell.body, /id="setup-panel"/);
     assert.match(shell.body, /Founders Clock/);
     assert.match(shell.body, /class="protest"/);
   });

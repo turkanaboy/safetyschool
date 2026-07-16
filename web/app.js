@@ -1,23 +1,24 @@
-import { validateContent } from '/engine/content.js';
+import { canonicalStringify, validateContent } from '/engine/content.js';
 import { ENGINE_VERSION } from '/engine/index.js';
-import { RIVAL_SCHOOLS } from '/game.js';
+import {
+  RIVAL_SCHOOLS,
+  allocationSummary,
+  buildingManagement,
+  createSoloController,
+  createSoloSession,
+  dumpRankings,
+  programManagement,
+  rivalProfile,
+  selectRivals,
+} from '/game.js';
+import {
+  discardSession,
+  isStaleStorageEvent,
+  loadSession,
+  saveSession,
+} from '/storage.js';
 
-const startup = document.querySelector('#startup');
-const startupTitle = document.querySelector('#startup-title');
-const startupMessage = document.querySelector('#startup-message');
-const retry = document.querySelector('#retry-startup');
-const status = document.querySelector('#game-status');
-const trayButton = document.querySelector('.tray-handle');
-const tray = document.querySelector('#management-tray');
-const fixtureButtons = [...document.querySelectorAll('[data-fixture]')];
-const buildings = [...document.querySelectorAll('.building')];
-const variantButtons = [...document.querySelectorAll('[data-building-variant]')];
-const rivals = [...document.querySelectorAll('.rival-campus')];
-let contentVersion = '';
-let currentFixture = 'early';
-let selectedDepartment = 'academics';
-const buildingVariants = Object.fromEntries(buildings.map((building) => [building.dataset.department, 'heritage']));
-
+const DEPARTMENTS = ['academics', 'studentAffairs', 'athletics', 'admissions', 'marketing', 'administration'];
 const departmentNames = {
   academics: 'Academics',
   administration: 'Administration',
@@ -26,85 +27,735 @@ const departmentNames = {
   marketing: 'Marketing',
   studentAffairs: 'Student Affairs',
 };
-
-const fixtures = {
-  early: {
-    condition: 'Early momentum',
-    note: 'The quad feels hopeful, but every building still looks like a compromise.',
-    levels: { academics: 3, administration: 1, admissions: 1, athletics: 1, marketing: 1, studentAffairs: 1 },
-    resources: ['$24m', '8,400', '44', '16,250'],
-    activity: ['Fall term begins with 8,400 students', 'Academics anchors the young campus'],
-  },
-  prosperous: {
-    condition: 'Campus thriving',
-    note: 'The satisfying “look at my little campus” phase: busy paths, confident buildings, and room to brag.',
-    levels: { academics: 5, administration: 3, admissions: 5, athletics: 3, marketing: 3, studentAffairs: 3 },
-    resources: ['$61m', '13,740', '71', '31,600'],
-    activity: ['Applications surge after a top-three ranking', 'The quad is packed between classes'],
-  },
-  strained: {
-    condition: 'Margins tightening',
-    note: 'Success has made the institution expensive. Deferred work is visible and the crowd has thinned.',
-    levels: { academics: 3, administration: 3, admissions: 3, athletics: 1, marketing: 1, studentAffairs: 1 },
-    resources: ['$7m', '9,180', '39', '19,400'],
-    activity: ['Upkeep consumed most of the annual margin', 'Facilities flags a growing repair backlog'],
-  },
-  austerity: {
-    condition: 'Austerity measures',
-    note: 'The board is still yours, but it looks painfully quiet. Every next move feels consequential.',
-    levels: { academics: 1, administration: 1, admissions: 1, athletics: 1, marketing: 1, studentAffairs: 1 },
-    resources: ['−$3m', '5,940', '22', '11,100'],
-    activity: ['Austerity restrictions are now in effect', 'Nonessential campus operations paused'],
-  },
+const archetypeNames = {
+  steadyHand: 'Steady operator',
+  gambler: 'Big bet',
+  prestigePlay: 'Prestige builder',
+  fortress: 'Student fortress',
+  oracle: 'Administrative oracle',
 };
+const mascots = [
+  { id: 'owl', name: 'Night Owl', mark: 'OW' },
+  { id: 'fox', name: 'Red Fox', mark: 'FX' },
+  { id: 'bison', name: 'Golden Bison', mark: 'BI' },
+];
+const colors = [
+  { id: 'pine', name: 'Pine & Gold' },
+  { id: 'brick', name: 'Brick & Cream' },
+  { id: 'lake', name: 'Lake & Silver' },
+];
 
-function selectBuilding(department) {
-  selectedDepartment = department;
-  for (const building of buildings) building.setAttribute('aria-pressed', String(building.dataset.department === department));
-  const building = buildings.find((candidate) => candidate.dataset.department === department);
-  const level = building.dataset.level;
-  document.querySelector('#selected-building strong').textContent = `${departmentNames[department]} · Level ${level}`;
-  document.querySelector('#selected-building span').textContent = level === '5'
-    ? 'A campus landmark operating at full strength.'
-    : level === '3' ? 'A proven department with visible room to grow.' : 'A modest foundation competing for scarce attention.';
-  variantButtons.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.buildingVariant === buildingVariants[department])));
+const startup = document.querySelector('#startup');
+const setupPanel = document.querySelector('#setup-panel');
+const gameShell = document.querySelector('.game-shell');
+const status = document.querySelector('#game-status');
+const trayButton = document.querySelector('.tray-handle');
+const tray = document.querySelector('#management-tray');
+const trayContent = document.querySelector('#tray-content');
+const inspector = document.querySelector('#inspector-content');
+const dialog = document.querySelector('#game-dialog');
+const dialogTitle = document.querySelector('#dialog-title');
+const dialogContent = document.querySelector('#dialog-content');
+const dialogActions = document.querySelector('#dialog-actions');
+
+let content = null;
+let controller = null;
+let revision = 0;
+let setupDraft = null;
+let selectedDepartment = 'academics';
+let selectedRival = null;
+let activeSection = 'briefing';
+let activeSlot = 0;
+let actionRegistry = new Map();
+let uiMessage = '';
+let saveWarning = '';
+let pausedForStaleSave = false;
+const numberFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+const storage = (() => {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+})();
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[character]));
 }
 
-function setBuildingVariant(variant) {
-  buildingVariants[selectedDepartment] = variant;
-  buildings.find((building) => building.dataset.department === selectedDepartment).dataset.variant = variant;
-  selectBuilding(selectedDepartment);
+function formatNumber(value) {
+  return numberFormatter.format(value);
 }
 
-function renderFixture(name) {
-  const fixture = fixtures[name];
-  currentFixture = name;
-  document.body.dataset.fixture = name;
-  document.querySelector('#campus-condition').textContent = fixture.condition;
-  document.querySelector('#atmosphere-note').textContent = fixture.note;
-  fixtureButtons.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.fixture === name)));
+function formatMoney(value, signed = false) {
+  const sign = value < 0 ? '−' : signed && value > 0 ? '+' : '';
+  const absolute = Math.abs(value);
+  const digits = Number.isInteger(absolute) ? 0 : 1;
+  return `${sign}$${absolute.toFixed(digits)}m`;
+}
 
-  buildings.forEach((building) => {
-    const level = fixture.levels[building.dataset.department];
-    const isUpgrade = level > Number(building.dataset.level);
+function titleCase(value) {
+  return String(value).replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (character) => character.toUpperCase());
+}
+
+function shortSchoolName(value) {
+  return String(value).replace(/ (University|College|Institute)$/, '');
+}
+
+function termLabel(view, next = false) {
+  if (next && view.phase === 'ready') {
+    return `Year ${Math.floor(view.round / content.config.gameLength.roundsPerYear) + 1} · Term ${(view.round % content.config.gameLength.roundsPerYear) + 1}`;
+  }
+  if (view.round === 0) return 'Preseason';
+  return `Year ${view.year} · Term ${view.roundOfYear}`;
+}
+
+function campusFixture(view) {
+  if (view.own.enteredAusterity || view.own.treasury < 0) return 'austerity';
+  if (view.own.strainedRounds > 0 || view.own.treasury < 10) return 'strained';
+  if (view.own.treasury >= 40 && view.own.reputation >= 55) return 'prosperous';
+  return 'early';
+}
+
+function campusCondition(fixture) {
+  return {
+    early: 'Building momentum',
+    prosperous: 'Campus thriving',
+    strained: 'Margins tightening',
+    austerity: 'Austerity measures',
+  }[fixture];
+}
+
+function registerAction(action) {
+  const key = `action-${actionRegistry.size}`;
+  actionRegistry.set(key, structuredClone(action));
+  return key;
+}
+
+function schoolName(view, playerId) {
+  if (playerId === view.own.id) return view.own.name;
+  return view.opponents.find((rival) => rival.id === playerId)?.name ?? playerId;
+}
+
+function actionLabel(action, view) {
+  if (action.type === 'upgrade') return `Upgrade ${departmentNames[action.department]}`;
+  if (action.type === 'sell') return `Sell one ${departmentNames[action.department]} level`;
+  if (action.type === 'openProgram') return `Open ${titleCase(action.program)}`;
+  if (action.type === 'campaign') return `Run ${formatMoney(action.spend)} campaign`;
+  if (action.type === 'poach') return `Recruit from ${schoolName(view, action.targetPlayerId)}`;
+  return 'Bank';
+}
+
+function actionCost(action, view) {
+  const option = view.legal?.kind === 'allocation'
+    ? view.legal.actions.find((candidate) => canonicalStringify(candidate.action) === canonicalStringify(action))
+    : null;
+  if (!option) return '';
+  if (option.recovery) return `${formatMoney(option.recovery)} recovery`;
+  return option.cost ? `${formatMoney(option.cost)} committed` : 'No spend';
+}
+
+function departmentEffect(department, level) {
+  const config = content.config;
+  if (department === 'admissions') {
+    return `${formatNumber(level * config.departments.admissions.pullPerLevelPerRound)} applicant pull each term at ${Math.round(config.departments.admissions.baseYield * 100)}% base yield.`;
+  }
+  if (department === 'marketing') {
+    return `Campaigns can commit up to ${formatMoney(config.departments.marketing.campaignSpendCapByLevel[level])} this term.`;
+  }
+  if (department === 'academics') {
+    const rate = config.departments.academics.graduationRateBase + level * config.departments.academics.graduationRatePerLevel;
+    return `${formatNumber(level * config.departments.academics.studentCapacityPerLevel)} student capacity and ${Math.round(rate * 100)}% graduation rate.`;
+  }
+  if (department === 'studentAffairs') {
+    const retention = Math.min(config.departments.studentAffairs.retentionCap,
+      config.departments.studentAffairs.retentionBase + level * config.departments.studentAffairs.retentionPerLevel);
+    return `${(retention * 100).toFixed(1)}% annual retention before other effects.`;
+  }
+  if (department === 'athletics') {
+    const odds = config.departments.athletics.seasonOddsByLevel[level];
+    return `${Math.round(odds.great * 100)}% great season · ${Math.round(odds.good * 100)}% good · ${Math.round(odds.losing * 100)}% losing.`;
+  }
+  const unlocked = Object.entries(config.departments.administration.tiers)
+    .filter(([tier]) => Number(tier) <= level)
+    .map(([tier]) => `Level ${tier} policy`);
+  return unlocked.length ? `${unlocked.join(' · ')} active.` : 'No Administration modifier is active yet.';
+}
+
+function eventDescription(event, view) {
+  if (event.type === 'gameCreated') return 'The founding board approved the four-school field.';
+  if (event.type === 'roundStarted') return `${termLabel(view)} opened.`;
+  if (event.type === 'headlineRevealed') return `Headline ${event.cardId} set the terms of the round.`;
+  if (event.type === 'incomeResolved') return 'Tuition and upkeep settled before allocation.';
+  if (event.type === 'recruitingResolved') return 'The shared applicant pool resolved.';
+  if (event.type === 'actionResolved') return `${schoolName(view, event.playerId)}: ${actionLabel(event, view)}.`;
+  if (event.type === 'cardResolved') return `${schoolName(view, event.playerId)} resolved ${event.cardId}.`;
+  if (event.type === 'cardCancelled') return `${schoolName(view, event.playerId)} cancelled ${event.cardId}.`;
+  if (event.type === 'forcedSale') return `${schoolName(view, event.playerId)} sold a ${departmentNames[event.department]} level.`;
+  if (event.type === 'playersEliminated') return `${event.playerIds.map((id) => schoolName(view, id)).join(', ')} closed.`;
+  if (event.type === 'standingsPublished') return 'The DUMP annual standings were published.';
+  if (event.type === 'gameFinished') return `${schoolName(view, event.winnerId)} won the game.`;
+  return null;
+}
+
+function activityItems(view, limit = 7) {
+  const items = [];
+  for (const entry of view.history) {
+    for (const event of entry.events) {
+      if (event.type === 'actionsResolved') {
+        for (const action of event.actions) items.push(eventDescription({ type: 'actionResolved', ...action }, view));
+      } else {
+        const description = eventDescription(event, view);
+        if (description) items.push(description);
+      }
+    }
+  }
+  return items.filter(Boolean).slice(-limit).reverse();
+}
+
+function syncSetupForm() {
+  const form = document.querySelector('#new-game-form');
+  if (!form || !setupDraft) return;
+  const data = new FormData(form);
+  setupDraft.name = String(data.get('schoolName') ?? setupDraft.name);
+  setupDraft.mascot = String(data.get('mascot') ?? setupDraft.mascot);
+  setupDraft.color = String(data.get('color') ?? setupDraft.color);
+}
+
+function randomSeed() {
+  const value = new Uint32Array(1);
+  crypto.getRandomValues(value);
+  return value[0];
+}
+
+function showStartup(markup) {
+  startup.hidden = false;
+  gameShell.inert = true;
+  setupPanel.innerHTML = markup;
+}
+
+function hideStartup() {
+  startup.hidden = true;
+  gameShell.inert = false;
+}
+
+function renderSetup(error = '') {
+  const total = Object.values(setupDraft.upgrades).reduce((sum, level) => sum + level, 0);
+  const rivals = setupDraft.rivals.map((rival) => `
+    <article class="setup-rival">
+      <span>${escapeHtml(rival.name.slice(0, 2).toUpperCase())}</span>
+      <div><strong>${escapeHtml(rival.name)}</strong><small>${escapeHtml(archetypeNames[rival.archetype])}</small></div>
+    </article>`).join('');
+  const upgradeRows = DEPARTMENTS.map((department) => {
+    const level = setupDraft.upgrades[department];
+    return `<div class="setup-upgrade">
+      <span><strong>${escapeHtml(departmentNames[department])}</strong><small>Starts at Level ${level + 1}</small></span>
+      <span class="setup-stepper">
+        <button type="button" data-setup-department="${department}" data-setup-delta="-1" aria-label="Remove a free ${escapeHtml(departmentNames[department])} level" ${level === 0 ? 'disabled' : ''}>−</button>
+        <output aria-label="${escapeHtml(departmentNames[department])} free levels">${level}</output>
+        <button type="button" data-setup-department="${department}" data-setup-delta="1" aria-label="Add a free ${escapeHtml(departmentNames[department])} level" ${level === 2 || total === 3 ? 'disabled' : ''}>+</button>
+      </span>
+    </div>`;
+  }).join('');
+  showStartup(`
+    <div class="setup-heading">
+      <span class="startup__seal" aria-hidden="true">SS</span>
+      <div><p class="eyebrow">New solo game</p><h1>Found your safety school</h1></div>
+    </div>
+    ${setupDraft.guideDismissed ? '' : `<aside class="setup-guide" aria-label="Setup guidance">
+      <strong>Your first board meeting</strong>
+      <p>The three rivals are already seated. Name your school, choose its look, then place exactly three free levels—no department can take more than two.</p>
+      <button type="button" data-dismiss-setup-guide>Got it</button>
+    </aside>`}
+    ${error ? `<p class="form-error" role="alert">${escapeHtml(error)}</p>` : ''}
+    <form id="new-game-form" class="setup-form">
+      <section class="setup-column">
+        <label class="field-label" for="school-name">School name</label>
+        <input id="school-name" name="schoolName" maxlength="42" required value="${escapeHtml(setupDraft.name)}" autocomplete="organization">
+        <fieldset><legend>Mascot</legend><div class="preset-grid">
+          ${mascots.map((mascot) => `<label><input type="radio" name="mascot" value="${mascot.id}" ${setupDraft.mascot === mascot.id ? 'checked' : ''}><span><b>${mascot.mark}</b>${mascot.name}</span></label>`).join('')}
+        </div></fieldset>
+        <fieldset><legend>Campus colors</legend><div class="preset-grid preset-grid--colors">
+          ${colors.map((color) => `<label><input type="radio" name="color" value="${color.id}" ${setupDraft.color === color.id ? 'checked' : ''}><span data-color-swatch="${color.id}">${color.name}</span></label>`).join('')}
+        </div></fieldset>
+        <div><p class="field-label">Your rivals</p><div class="setup-rivals">${rivals}</div></div>
+      </section>
+      <section class="setup-column setup-column--levels">
+        <div class="setup-level-heading"><div><p class="field-label">Founding investments</p><h2>Assign three free levels</h2></div><output class="level-total">${total}<small>/ 3 placed</small></output></div>
+        <div class="setup-upgrades">${upgradeRows}</div>
+        <p class="setup-note">Programs are enabled. Every rival uses the same rules and receives no hidden bonus.</p>
+        <button class="primary-button" type="submit" ${total !== 3 ? 'disabled' : ''}>Open the campus</button>
+      </section>
+    </form>`);
+}
+
+function openSetup(message = '') {
+  const rivals = selectRivals();
+  setupDraft = {
+    seed: randomSeed(),
+    rivals,
+    upgrades: Object.fromEntries(DEPARTMENTS.map((department) => [department, 0])),
+    name: 'Founders Green',
+    mascot: mascots[0].id,
+    color: colors[0].id,
+    guideDismissed: false,
+  };
+  renderSetup(message);
+  document.querySelector('#school-name')?.focus();
+}
+
+function showResume(envelope) {
+  const session = envelope.session;
+  const round = session.state.round;
+  showStartup(`
+    <span class="startup__seal" aria-hidden="true">SS</span>
+    <p class="eyebrow">Local game found</p>
+    <h1>Return to ${escapeHtml(session.human.name)}</h1>
+    <p>${round === 0 ? 'The founding board is waiting.' : `Saved after Round ${round}.`} Your three-rival lineup and Board Book are intact.</p>
+    <div class="startup-actions">
+      <button class="primary-button" type="button" data-resume-game>Resume game</button>
+      <button class="secondary-button" type="button" data-request-new-game>New game</button>
+    </div>`);
+}
+
+function showInvalidSave(result) {
+  showStartup(`
+    <span class="startup__seal" aria-hidden="true">!</span>
+    <p class="eyebrow">Save recovery</p>
+    <h1>The Board Book cannot be opened</h1>
+    <p>The stored game is ${escapeHtml(result.reason)}. It has not been overwritten or discarded.</p>
+    <div class="startup-actions">
+      <button class="primary-button" type="button" data-retry-startup>Try again</button>
+      <button class="danger-button" type="button" data-discard-invalid-save>Discard and start new</button>
+    </div>`);
+}
+
+function persist(session) {
+  if (pausedForStaleSave) return;
+  const result = saveSession(storage, session, content, { expectedRevision: revision });
+  if (result.ok) {
+    revision = result.envelope.revision;
+    saveWarning = '';
+    return;
+  }
+  if (result.reason === 'staleRevision') {
+    pauseForStaleSave();
+    return;
+  }
+  saveWarning = 'Autosave unavailable—this tab can continue, but progress may not survive a refresh.';
+  status.textContent = 'Autosave warning';
+}
+
+function attachController(session) {
+  controller = createSoloController({ session, content, onTransition: persist });
+  selectedRival = session.rivals[0]?.id ?? null;
+}
+
+function resumeGame(envelope) {
+  revision = envelope.revision;
+  attachController(envelope.session);
+  hideStartup();
+  controller.resume();
+  renderGame();
+}
+
+function openNewGameConfirmation() {
+  dialogTitle.textContent = 'Start a new campus?';
+  dialogContent.innerHTML = '<p>Your current local game will be discarded. This cannot be undone.</p>';
+  dialogActions.innerHTML = `
+    <button class="secondary-button" type="button" data-close-dialog>Keep current game</button>
+    <button class="danger-button" type="button" data-confirm-new-game>Discard and start new</button>`;
+  dialog.dataset.mandatory = 'false';
+  dialog.showModal();
+  dialogActions.querySelector('[data-close-dialog]').focus();
+}
+
+function pauseForStaleSave() {
+  if (pausedForStaleSave) return;
+  pausedForStaleSave = true;
+  gameShell.inert = true;
+  dialogTitle.textContent = 'A newer game is open';
+  dialogContent.innerHTML = '<p>Another tab saved a newer revision. This tab has paused so it cannot overwrite that progress.</p>';
+  dialogActions.innerHTML = '<button class="primary-button" type="button" data-reload-game>Reload newer game</button>';
+  dialog.dataset.mandatory = 'true';
+  dialog.showModal();
+  dialogActions.querySelector('button').focus();
+}
+
+function setTrayExpanded(expanded, instant = false) {
+  if (instant) tray.classList.add('is-instant');
+  trayButton.setAttribute('aria-expanded', String(expanded));
+  tray.setAttribute('aria-hidden', String(!expanded));
+  tray.inert = !expanded;
+  if (instant) requestAnimationFrame(() => tray.classList.remove('is-instant'));
+}
+
+function renderRankings(view) {
+  const rankings = dumpRankings(view);
+  document.querySelector('#rankings-list').innerHTML = rankings.map((school) => `
+    <li class="${school.id === view.own.id ? 'is-player' : ''} ${school.closed ? 'is-closed' : ''}">
+      <span>${school.closed ? '×' : school.rank ?? '—'}</span> ${escapeHtml(school.id === view.own.id ? 'You' : shortSchoolName(school.name))}
+    </li>`).join('');
+  const ownRank = rankings.find((school) => school.id === view.own.id)?.rank;
+  document.querySelector('#campus-rank-label').textContent = ownRank ? `Your campus · Rank ${ownRank}` : 'Your campus · Preseason';
+  return rankings;
+}
+
+function renderRivalCampuses(view, rankings) {
+  const rankById = new Map(rankings.map((school) => [school.id, school]));
+  document.querySelector('#rival-spaces').innerHTML = view.opponents.map((rival, index) => {
+    const rank = rankById.get(rival.id);
+    return `<button class="rival-campus" type="button" data-rival="${escapeHtml(rival.id)}" aria-pressed="${rival.id === selectedRival}">
+      <span class="rival-campus__rank">${rank?.closed ? '×' : rank?.rank ?? '—'}</span>
+      <span class="rival-campus__mini ${index === 1 ? 'rival-campus__mini--old' : index === 2 ? 'rival-campus__mini--glass' : ''}" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span><strong>${escapeHtml(shortSchoolName(rival.name))}</strong><small>${escapeHtml(rival.treasuryBand)} · Rep ${formatNumber(rival.reputation)}</small></span>
+    </button>`;
+  }).join('');
+}
+
+function renderInspector(view) {
+  const management = buildingManagement(view, selectedDepartment, content);
+  const upgradeKey = management.upgrade ? registerAction(management.upgrade.action) : null;
+  const sellKey = management.sell ? registerAction(management.sell.action) : null;
+  const nextEffect = management.nextLevel ? departmentEffect(selectedDepartment, management.nextLevel) : 'This building has reached its final form.';
+  inspector.innerHTML = `
+    <p class="eyebrow">Selected building</p>
+    <h2 id="activity-heading">${escapeHtml(departmentNames[selectedDepartment])} <span>Level ${management.level}</span></h2>
+    <p class="atmosphere-note">${escapeHtml(departmentEffect(selectedDepartment, management.level))}</p>
+    <div class="building-next">
+      <small>${management.nextLevel ? `Level ${management.nextLevel}` : 'Maximum level'}</small>
+      <strong>${management.nextLevel ? `${formatMoney(management.upgradeCost)} build · ${formatMoney(management.baseUpkeepChange, true)} base upkeep` : 'Fully developed'}</strong>
+      <span>${escapeHtml(nextEffect)}</span>
+    </div>
+    <div class="inspector-actions">
+      ${upgradeKey ? `<button class="primary-button" type="button" data-stage-action="${upgradeKey}">Add upgrade to plan</button>` : `<p class="unavailable-note">${escapeHtml(management.upgradeReason)}</p>`}
+      ${sellKey ? `<button class="text-button" type="button" data-stage-action="${sellKey}">Plan voluntary sale</button>` : ''}
+    </div>`;
+}
+
+function renderActivity(view) {
+  const items = activityItems(view);
+  document.querySelector('#activity-feed').innerHTML = (items.length ? items : ['The quad is ready for its first term.'])
+    .map((item) => `<li>${escapeHtml(item)}</li>`).join('');
+}
+
+function renderBriefing(view) {
+  const capacity = view.own.departments.academics * content.config.departments.academics.studentCapacityPerLevel;
+  const activeEffects = Object.entries(view.own.effects).filter(([, value]) => value !== 0 && value !== 1 && value !== null && value !== false);
+  const warning = view.own.students > capacity
+    ? `${formatNumber(view.own.students - capacity)} students above current Academics capacity.`
+    : view.own.treasury < 10 ? 'Treasury margin is narrowing.' : 'No urgent operating warning.';
+  let decision = '';
+  if (view.pendingDecision && view.legal?.kind === 'decision') {
+    decision = `<section class="decision-panel"><p class="eyebrow">Decision required</p><h3>${view.pendingDecision.type === 'forcedSale' ? 'Emergency sale' : 'Administration review'}</h3>
+      <div class="action-grid">${view.legal.commands.map((command) => {
+        const key = registerAction(command);
+        const label = command.department ? `Sell ${departmentNames[command.department]} · recover ${formatMoney(command.recovery)}` : titleCase(command.choice);
+        return `<button type="button" data-answer-decision="${key}">${escapeHtml(label)}</button>`;
+      }).join('')}</div></section>`;
+  }
+  let primary = '';
+  if (view.mode === 'eliminationChoice') {
+    primary = '<div class="button-row"><button class="primary-button" type="button" data-spectate>Watch next term</button><button class="secondary-button" type="button" data-skip-remaining>Skip to results</button></div>';
+  } else if (view.mode === 'spectating') {
+    primary = '<div class="button-row"><button class="primary-button" type="button" data-spectate>Watch next term</button><button class="secondary-button" type="button" data-skip-remaining>Skip remaining</button></div>';
+  } else if (view.phase === 'ready' && !view.finished) {
+    primary = `<button class="primary-button" type="button" data-start-round>Begin ${escapeHtml(termLabel(view, true))}</button>`;
+  } else if (view.phase === 'allocation') {
+    primary = '<button class="primary-button" type="button" data-open-allocation>Build the allocation plan</button>';
+  }
+  return `<div class="tray-layout">
+    <div class="tray-copy"><p class="eyebrow">President's desk</p><h2>Briefing</h2><p>${view.phase === 'ready' ? 'The campus is settled and ready for the next shared Headline.' : `Headline ${escapeHtml(view.headline ?? 'pending')} has settled. Review the position before committing the term.`}</p>${primary}</div>
+    <div class="tray-preview briefing-grid">
+      <article><small>Position</small><strong>${formatMoney(view.own.treasury)}</strong><span>${view.own.paidUpkeepThisRound ? `${formatMoney(view.own.paidUpkeepThisRound)} upkeep paid` : 'Preseason treasury'}</span></article>
+      <article><small>Capacity</small><strong>${formatNumber(capacity)}</strong><span>${formatNumber(view.own.students)} students enrolled</span></article>
+      <article class="${warning.startsWith('No urgent') ? '' : 'is-warning'}"><small>Pressure</small><strong>${warning.startsWith('No urgent') ? 'Stable' : 'Watch'}</strong><span>${escapeHtml(warning)}</span></article>
+      <article><small>Active effects</small><strong>${activeEffects.length}</strong><span>${activeEffects.length ? 'Carrying into play' : 'No temporary modifiers'}</span></article>
+    </div>${decision}</div>`;
+}
+
+function renderAllocation(view) {
+  if (view.phase !== 'allocation' || view.legal?.kind !== 'allocation') {
+    return `<div class="tray-copy"><p class="eyebrow">Resource allocation</p><h2>Allocation</h2><p>${view.phase === 'ready' ? 'Begin the next term before making commitments.' : 'Allocation is unavailable while another decision is resolving.'}</p>${view.phase === 'ready' ? `<button class="primary-button" type="button" data-start-round>Begin ${escapeHtml(termLabel(view, true))}</button>` : ''}</div>`;
+  }
+  const summary = allocationSummary(view, content);
+  if (activeSlot >= summary.maxActions) activeSlot = 0;
+  const slots = summary.slots.map((slot) => `<article class="allocation-slot ${slot.index === activeSlot ? 'is-active' : ''}">
+    <button type="button" data-allocation-slot="${slot.index}" aria-pressed="${slot.index === activeSlot}">
+      <small>${slot.bonus ? 'Bonus slot' : `Action ${slot.index + 1}`}</small>
+      <strong>${slot.action ? escapeHtml(actionLabel(slot.action, view)) : 'Bank'}</strong>
+      <span>${slot.action ? escapeHtml(actionCost(slot.action, view)) : 'Unused by omission'}</span>
+    </button>
+    ${slot.action ? `<button class="slot-clear" type="button" data-clear-slot="${slot.index}" aria-label="Clear action ${slot.index + 1}">Clear</button>` : ''}
+  </article>`).join('');
+  const options = view.legal.actions.filter((option) => option.action.type !== 'bank').map((option) => {
+    const key = registerAction(option.action);
+    return `<button type="button" data-stage-action="${key}"><strong>${escapeHtml(actionLabel(option.action, view))}</strong><span>${escapeHtml(option.recovery ? `${formatMoney(option.recovery)} recovery` : option.cost ? formatMoney(option.cost) : 'No spend')}</span></button>`;
+  }).join('');
+  const guide = view.tutorial.allocationDismissed ? '' : `<aside class="inline-guide"><div><strong>Your first allocation</strong><p>Choose a slot, then add or replace one legal action. Empty slots become Bank only when you confirm.</p></div><button type="button" data-dismiss-tutorial="allocation">Dismiss</button></aside>`;
+  return `${guide}<div class="allocation-layout">
+    <section><div class="section-heading"><div><p class="eyebrow">Resource allocation</p><h2>Commit this term</h2></div><span>${summary.bonusSlots ? `${summary.bonusSlots} bonus slot` : `${summary.maxActions} standard slots`}</span></div><div class="allocation-slots">${slots}</div>
+      <button class="primary-button" type="button" data-confirm-allocation>Confirm ${summary.bankSlots ? `with ${summary.bankSlots} Bank slot${summary.bankSlots === 1 ? '' : 's'}` : 'allocation'}</button>
+      <div class="projection-strip">
+        <span><small>Committed spend</small><strong>${formatMoney(summary.committedSpend)}</strong></span>
+        <span><small>Sale recovery</small><strong>${formatMoney(summary.saleRecovery)}</strong></span>
+        <span><small>After actions</small><strong>${formatMoney(summary.projectedTreasury)}</strong></span>
+        <span><small>Base upkeep change</small><strong>${formatMoney(summary.baseUpkeepChange, true)}</strong></span>
+      </div><p class="projection-note">Affordability uses the treasury you have now; sale recovery cannot fund same-term spend. Recruiting and cards are not projected.</p>
+    </section>
+    <section class="action-catalog"><h3>Legal actions</h3><div class="action-grid">${options || '<p>No discretionary action is affordable.</p>'}</div></section>
+  </div>`;
+}
+
+function renderPrograms(view) {
+  const programs = programManagement(view, content);
+  const current = programs.current.length ? programs.current.map((program) => `<article><small>Open</small><strong>${escapeHtml(titleCase(program.program))}</strong><span>${formatMoney(program.upkeepPerRound)} base upkeep · ${formatNumber(program.pullPerRound)} pull</span></article>`).join('') : '<p class="empty-state">No Programs are open yet.</p>';
+  const available = programs.available.map((option) => {
+    const key = registerAction(option.action);
+    const details = content.config.programs.catalog[option.action.program];
+    return `<article class="program-option"><div><small>${formatMoney(option.cost)} to open</small><strong>${escapeHtml(titleCase(option.action.program))}</strong><span>${formatNumber(details.pullPerRound)} pull · ${formatMoney(details.upkeepPerRound)} upkeep</span></div><button type="button" data-stage-action="${key}">Add to plan</button></article>`;
+  }).join('');
+  return `<div class="program-layout">
+    <section><div class="section-heading"><div><p class="eyebrow">Academic portfolio</p><h2>Programs</h2></div><span>${programs.openSlots} of ${programs.slotCount} slots open</span></div><div class="program-grid">${current}</div></section>
+    <section><h3>Eligible openings</h3><p class="projection-note">Slots use committed Academics. A staged Academics upgrade does not create a Program slot until a later term.</p><div class="program-options">${available || '<p class="empty-state">No legal opening is available in the current state.</p>'}</div></section>
+  </div>`;
+}
+
+function renderRivals(view) {
+  if (!selectedRival || !view.opponents.some((rival) => rival.id === selectedRival)) selectedRival = view.opponents[0].id;
+  const profile = rivalProfile(view, selectedRival);
+  const identities = view.lineup.map((rival) => `<button type="button" data-rival-profile="${escapeHtml(rival.id)}" aria-pressed="${rival.id === selectedRival}">${escapeHtml(rival.name)}</button>`).join('');
+  const departments = Object.entries(profile.departments).map(([department, level]) => `<span><small>${escapeHtml(departmentNames[department])}</small><strong>Level ${level}</strong></span>`).join('');
+  const events = profile.recentEvents.map((event) => eventDescription(event, view)).filter(Boolean).slice(-5).reverse();
+  return `<div class="rival-layout">
+    <section><p class="eyebrow">Competitive field</p><h2>Rivals</h2><div class="rival-tabs">${identities}</div>
+      <div class="rival-profile-heading"><div><small>${escapeHtml(archetypeNames[profile.archetype])}</small><h3>${escapeHtml(profile.name)}</h3></div><span>${profile.active ? 'Active' : 'Closed'}</span></div>
+      <div class="rival-metrics"><span><small>Students</small><strong>${formatNumber(profile.students)}</strong></span><span><small>Reputation</small><strong>${formatNumber(profile.reputation)}</strong></span><span><small>Treasury</small><strong>${Object.hasOwn(profile, 'treasury') ? formatMoney(profile.treasury) : escapeHtml(profile.treasuryBand)}</strong></span><span><small>Programs</small><strong>${profile.programs.length}</strong></span></div>
+      <div class="department-grid">${departments}</div>
+    </section>
+    <section><h3>Recent public activity</h3><ol class="history-list">${(events.length ? events : ['No public action recorded yet.']).map((event) => `<li>${escapeHtml(event)}</li>`).join('')}</ol><p class="privacy-note">Exact treasury and private disruption foresight remain confidential unless a public effect reveals them.</p></section>
+  </div>`;
+}
+
+function renderBoardBook(view) {
+  const history = activityItems(view, 16);
+  return `<div class="board-book-layout">
+    <section><p class="eyebrow">Permanent reference</p><h2>Board Book</h2><div class="help-card"><strong>How a term works</strong><p>Begin the shared term, review income and warnings, then commit up to two different action types. Rivals submit simultaneously. Cards and recruiting resolve only after confirmation.</p></div><div class="help-card"><strong>What DUMP means</strong><p>Definitive Ultimate Marketing Ploy rankings use published students, reputation, departments, Programs, and alumni. Treasury is excluded and DUMP never changes the rules.</p></div><button class="danger-link" type="button" data-request-new-game>Start a different game</button></section>
+    <section><h3>Recent Board record</h3><ol class="history-list">${(history.length ? history : ['No term history yet.']).map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ol></section>
+  </div>`;
+}
+
+function renderTray(view) {
+  document.querySelectorAll('[data-management-section]').forEach((button) => {
+    button.setAttribute('aria-pressed', String(button.dataset.managementSection === activeSection));
+  });
+  if (activeSection === 'allocate') trayContent.innerHTML = renderAllocation(view);
+  else if (activeSection === 'programs') trayContent.innerHTML = renderPrograms(view);
+  else if (activeSection === 'rivals') trayContent.innerHTML = renderRivals(view);
+  else if (activeSection === 'boardBook') trayContent.innerHTML = renderBoardBook(view);
+  else trayContent.innerHTML = renderBriefing(view);
+  if (uiMessage) trayContent.insertAdjacentHTML('afterbegin', `<p class="ui-message" role="status">${escapeHtml(uiMessage)}</p>`);
+}
+
+function renderGame({ animateBuildings = false } = {}) {
+  if (!controller) return;
+  const view = controller.getView();
+  actionRegistry = new Map();
+  const fixture = campusFixture(view);
+  document.body.dataset.fixture = fixture;
+  document.body.dataset.population = view.own.students < 5000 ? 'low' : view.own.students > 11000 ? 'high' : 'medium';
+  document.body.dataset.color = view.identity.color;
+  document.querySelector('#campus-condition').textContent = campusCondition(fixture);
+  document.querySelector('#campus-heading').textContent = view.own.name;
+  document.querySelector('#campus-edge-name').textContent = `${view.own.name.toUpperCase()} UNIVERSITY`;
+  document.querySelector('#campus-edge-term').textContent = termLabel(view);
+  document.querySelector('#campus-seal').textContent = mascots.find((mascot) => mascot.id === view.identity.mascot)?.mark ?? 'SS';
+  document.querySelector('#treasury-value').textContent = formatMoney(view.own.treasury);
+  document.querySelector('#students-value').textContent = formatNumber(view.own.students);
+  document.querySelector('#reputation-value').textContent = formatNumber(view.own.reputation);
+  document.querySelector('#alumni-value').textContent = formatNumber(view.own.alumni);
+
+  const rankings = renderRankings(view);
+  renderRivalCampuses(view, rankings);
+  document.querySelectorAll('.building').forEach((building) => {
+    const department = building.dataset.department;
+    const level = view.own.departments[department];
+    const prior = Number(building.dataset.level);
     building.dataset.level = String(level);
-    building.setAttribute('aria-label', `${departmentNames[building.dataset.department]}, Level ${level}`);
+    building.setAttribute('aria-label', `${departmentNames[department]}, Level ${level}`);
+    building.setAttribute('aria-pressed', String(department === selectedDepartment));
     building.querySelector('.building__caption b').textContent = String(level);
-    if (isUpgrade && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (animateBuildings && level > prior && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
       building.classList.remove('is-building');
       void building.offsetWidth;
       building.classList.add('is-building');
+      setTimeout(() => building.classList.remove('is-building'), 900);
     }
   });
 
-  ['treasury', 'students', 'reputation', 'alumni'].forEach((resource, index) => {
-    document.querySelector(`#${resource}-value`).textContent = fixture.resources[index];
-  });
-  document.querySelector('#activity-feed').innerHTML = [
-    ...(contentVersion ? [`Records validated · ${contentVersion}`] : []),
-    ...fixture.activity,
-  ].map((item) => `<li>${item}</li>`).join('');
-  selectBuilding(selectedDepartment);
+  const slots = view.legal?.kind === 'allocation' ? view.legal.maxActions - view.stagedActions.filter(Boolean).length : 0;
+  status.textContent = saveWarning || (view.phase === 'allocation' ? `${termLabel(view)} · ${slots} action slot${slots === 1 ? '' : 's'} open` : `${termLabel(view)} · ${view.mode === 'playing' ? titleCase(view.phase) : titleCase(view.mode)}`);
+  renderInspector(view);
+  renderActivity(view);
+  renderTray(view);
+}
+
+function stageRegisteredAction(key) {
+  const action = actionRegistry.get(key);
+  if (!action) throw new Error('That action is no longer available.');
+  const view = controller.getView();
+  if (view.phase !== 'allocation') throw new Error('Begin the term before adding an action.');
+  controller.stageAction(activeSlot, action);
+  const next = controller.getView();
+  activeSlot = Array.from({ length: next.legal.maxActions }, (_, index) => index)
+    .find((index) => !next.stagedActions[index]) ?? activeSlot;
+}
+
+function handleClick(event) {
+  const button = event.target.closest('button');
+  if (!button) return;
+  try {
+    uiMessage = '';
+    if (button.matches('[data-retry-startup]') || button.id === 'retry-startup') start();
+    else if (button.matches('[data-resume-game]')) {
+      const loaded = loadSession(storage, content);
+      if (loaded.status === 'ok') resumeGame(loaded.envelope);
+      else if (loaded.status === 'invalid') showInvalidSave(loaded);
+      else openSetup('No resumable game was found.');
+    } else if (button.matches('[data-request-new-game]')) openNewGameConfirmation();
+    else if (button.matches('[data-close-dialog]')) dialog.close();
+    else if (button.matches('[data-confirm-new-game]')) {
+      discardSession(storage);
+      revision = 0;
+      controller = null;
+      dialog.close();
+      openSetup();
+    } else if (button.matches('[data-discard-invalid-save]')) {
+      discardSession(storage);
+      revision = 0;
+      openSetup();
+    } else if (button.matches('[data-reload-game]')) location.reload();
+    else if (button.matches('[data-dismiss-setup-guide]')) {
+      syncSetupForm();
+      setupDraft.guideDismissed = true;
+      renderSetup();
+    } else if (button.matches('[data-setup-department]')) {
+      syncSetupForm();
+      const department = button.dataset.setupDepartment;
+      const delta = Number(button.dataset.setupDelta);
+      const total = Object.values(setupDraft.upgrades).reduce((sum, level) => sum + level, 0);
+      const next = setupDraft.upgrades[department] + delta;
+      if (next >= 0 && next <= 2 && (delta < 0 || total < 3)) setupDraft.upgrades[department] = next;
+      renderSetup();
+      document.querySelector(`[data-setup-department="${department}"][data-setup-delta="${delta}"]`)?.focus();
+    } else if (button === trayButton) {
+      const expanded = trayButton.getAttribute('aria-expanded') === 'true';
+      setTrayExpanded(!expanded, event.detail === 0);
+    } else if (button.matches('[data-management-section]')) {
+      activeSection = button.dataset.managementSection;
+      setTrayExpanded(true, true);
+      renderGame();
+    } else if (button.matches('[data-rival]')) {
+      selectedRival = button.dataset.rival;
+      activeSection = 'rivals';
+      setTrayExpanded(true, event.detail === 0);
+      renderGame();
+    } else if (button.matches('[data-rival-profile]')) {
+      selectedRival = button.dataset.rivalProfile;
+      renderGame();
+    } else if (button.matches('.building')) {
+      selectedDepartment = button.dataset.department;
+      renderGame();
+    } else if (button.matches('[data-open-allocation]')) {
+      activeSection = 'allocate';
+      renderGame();
+    } else if (button.matches('[data-start-round]')) {
+      controller.startRound();
+      activeSection = 'briefing';
+      activeSlot = 0;
+      renderGame();
+    } else if (button.matches('[data-allocation-slot]')) {
+      activeSlot = Number(button.dataset.allocationSlot);
+      renderGame();
+    } else if (button.matches('[data-stage-action]')) {
+      stageRegisteredAction(button.dataset.stageAction);
+      renderGame();
+    } else if (button.matches('[data-clear-slot]')) {
+      controller.clearAction(Number(button.dataset.clearSlot));
+      activeSlot = Number(button.dataset.clearSlot);
+      renderGame();
+    } else if (button.matches('[data-confirm-allocation]')) {
+      controller.confirmAllocation();
+      activeSection = 'briefing';
+      activeSlot = 0;
+      renderGame({ animateBuildings: event.detail !== 0 });
+    } else if (button.matches('[data-answer-decision]')) {
+      controller.answerDecision(actionRegistry.get(button.dataset.answerDecision));
+      renderGame();
+    } else if (button.matches('[data-dismiss-tutorial]')) {
+      controller.dismissTutorial(button.dataset.dismissTutorial);
+      renderGame();
+    } else if (button.matches('[data-spectate]')) {
+      controller.spectateNext();
+      renderGame();
+    } else if (button.matches('[data-skip-remaining]')) {
+      controller.skipRemaining();
+      renderGame();
+    }
+  } catch (error) {
+    uiMessage = error.message;
+    if (controller) renderGame();
+  }
+}
+
+function handleSubmit(event) {
+  if (event.target.id !== 'new-game-form') return;
+  event.preventDefault();
+  syncSetupForm();
+  const total = Object.values(setupDraft.upgrades).reduce((sum, level) => sum + level, 0);
+  if (total !== 3) {
+    renderSetup('Place exactly three free levels before opening the campus.');
+    return;
+  }
+  const name = setupDraft.name.trim();
+  if (!name) {
+    renderSetup('Give the school a name.');
+    return;
+  }
+  try {
+    const session = createSoloSession({
+      seed: setupDraft.seed,
+      human: {
+        id: 'human',
+        name,
+        mascot: setupDraft.mascot,
+        color: setupDraft.color,
+        upgrades: structuredClone(setupDraft.upgrades),
+      },
+      rivalIds: setupDraft.rivals.map((rival) => rival.id),
+    }, content);
+    session.tutorial.setupDismissed = true;
+    const saved = saveSession(storage, session, content, { expectedRevision: 0 });
+    if (saved.ok) revision = saved.envelope.revision;
+    else if (saved.reason === 'staleRevision' || saved.reason === 'invalidExisting') {
+      renderSetup('A saved game still occupies this browser. Return and confirm before replacing it.');
+      return;
+    } else {
+      revision = 0;
+      saveWarning = 'Autosave unavailable—playing in memory only.';
+    }
+    attachController(session);
+    hideStartup();
+    setupDraft = null;
+    activeSection = 'briefing';
+    selectedDepartment = 'academics';
+    setTrayExpanded(true);
+    renderGame();
+  } catch (error) {
+    renderSetup(error.message);
+  }
 }
 
 async function fetchJson(path) {
@@ -114,38 +765,36 @@ async function fetchJson(path) {
 }
 
 async function start() {
-  retry.hidden = true;
-  startupTitle.textContent = 'Opening the gates';
-  startupMessage.textContent = 'Validating the official campus records…';
+  showStartup('<span class="startup__seal" aria-hidden="true">SS</span><h1>Opening the gates</h1><p>Validating the official campus records…</p>');
+  status.textContent = 'Loading campus…';
   try {
     const [config, cards] = await Promise.all([fetchJson('/balance-config.json'), fetchJson('/cards.json')]);
-    const content = validateContent(config, cards);
-    contentVersion = content.identity.configVersion;
+    content = validateContent(config, cards);
     status.textContent = `Engine ${ENGINE_VERSION} · ${RIVAL_SCHOOLS.length} rival schools ready`;
-    renderFixture(currentFixture);
-    startup.hidden = true;
+    const loaded = loadSession(storage, content);
+    if (loaded.status === 'ok') showResume(loaded.envelope);
+    else if (loaded.status === 'invalid') showInvalidSave(loaded);
+    else if (loaded.status === 'unavailable') openSetup('Local autosave is unavailable; this game will continue in memory.');
+    else openSetup();
   } catch (error) {
-    startupTitle.textContent = 'The campus could not open';
-    startupMessage.textContent = `Check the local server and try again. ${error.message}`;
-    retry.hidden = false;
+    showStartup(`<span class="startup__seal" aria-hidden="true">!</span><h1>The campus could not open</h1><p>Check the local server and try again. ${escapeHtml(error.message)}</p><button class="primary-button" type="button" data-retry-startup>Retry</button>`);
     status.textContent = 'Startup error';
   }
 }
 
-trayButton.addEventListener('click', () => {
-  const expanded = trayButton.getAttribute('aria-expanded') === 'true';
-  trayButton.setAttribute('aria-expanded', String(!expanded));
-  tray.setAttribute('aria-hidden', String(expanded));
-  tray.inert = expanded;
+document.addEventListener('click', handleClick);
+document.addEventListener('submit', handleSubmit);
+document.addEventListener('keydown', () => {
+  if (document.body.dataset.input !== 'keyboard') document.body.dataset.input = 'keyboard';
+}, true);
+document.addEventListener('pointerdown', () => {
+  if (document.body.dataset.input !== 'pointer') document.body.dataset.input = 'pointer';
+}, true);
+dialog.addEventListener('cancel', (event) => {
+  if (dialog.dataset.mandatory === 'true') event.preventDefault();
 });
-fixtureButtons.forEach((button) => button.addEventListener('click', () => renderFixture(button.dataset.fixture)));
-buildings.forEach((building) => building.addEventListener('click', () => selectBuilding(building.dataset.department)));
-variantButtons.forEach((button) => button.addEventListener('click', () => setBuildingVariant(button.dataset.buildingVariant)));
-rivals.forEach((rival) => rival.addEventListener('click', () => {
-  const selected = rival.getAttribute('aria-pressed') === 'true';
-  rivals.forEach((candidate) => candidate.setAttribute('aria-pressed', 'false'));
-  rival.setAttribute('aria-pressed', String(!selected));
-}));
-retry.addEventListener('click', start);
-renderFixture(currentFixture);
+window.addEventListener('storage', (event) => {
+  if (controller && content && isStaleStorageEvent(event, revision, content)) pauseForStaleSave();
+});
+
 start();

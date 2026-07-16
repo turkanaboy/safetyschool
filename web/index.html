@@ -20,11 +20,8 @@
           <strong><abbr title="Definitive Ultimate Marketing Ploy">DUMP</abbr> Rankings</strong>
           <small>Definitive Ultimate Marketing Ploy</small>
         </span>
-        <ol>
-          <li><span>1</span> Northbridge</li>
-          <li><span>2</span> You</li>
-          <li><span>3</span> Saint Cadmus</li>
-          <li><span>4</span> Westlake</li>
+        <ol id="rankings-list">
+          <li><span>—</span> Preseason</li>
         </ol>
       </nav>
       <output class="status-chip" id="game-status" aria-live="polite">Loading campus…</output>
@@ -33,7 +30,7 @@
     <main class="playing-area" aria-label="Campus board">
       <section class="board-stage" aria-labelledby="campus-heading">
         <div class="board-horizon" aria-hidden="true"><span></span><span></span><span></span></div>
-        <div class="rival-spaces" aria-label="Rival campuses">
+        <div class="rival-spaces" id="rival-spaces" aria-label="Rival campuses">
           <button class="rival-campus" type="button" data-rival="northbridge" aria-pressed="false">
             <span class="rival-campus__rank">1</span>
             <span class="rival-campus__mini" aria-hidden="true"><i></i><i></i><i></i></span>
@@ -53,8 +50,8 @@
 
         <div class="campus-board">
           <div class="campus-nameplate">
-            <span class="campus-nameplate__seal" aria-hidden="true">FG</span>
-            <span><small>Your campus · Rank 2</small><strong id="campus-heading">Founders Green</strong></span>
+            <span class="campus-nameplate__seal" id="campus-seal" aria-hidden="true">FG</span>
+            <span><small id="campus-rank-label">Your campus · Preseason</small><strong id="campus-heading">Founders Green</strong></span>
           </div>
           <output class="campus-condition" id="campus-condition">Early momentum</output>
 
@@ -108,35 +105,17 @@
             <div class="protest" aria-hidden="true"><i></i><i></i><i></i><i></i><span>Fund students, not slogans</span></div>
             <div class="maintenance-cue" aria-hidden="true"><i></i><i></i><i></i><span>Deferred maintenance</span></div>
           </div>
-          <div class="campus-board__edge"><span>Founded 1912</span><strong>FOUNDER GREEN UNIVERSITY</strong><span>Term 1</span></div>
+          <div class="campus-board__edge"><span>Founded 1912</span><strong id="campus-edge-name">FOUNDERS GREEN UNIVERSITY</strong><span id="campus-edge-term">Preseason</span></div>
         </div>
       </section>
 
       <aside class="activity" aria-labelledby="activity-heading">
-        <div>
-          <p class="eyebrow">Visual workshop</p>
-          <h2 id="activity-heading">Campus atmosphere</h2>
+        <div id="inspector-content">
+          <p class="eyebrow">Campus management</p>
+          <h2 id="activity-heading">Academics</h2>
+          <p class="atmosphere-note">Select a building to review its current effect and next investment.</p>
         </div>
-        <nav class="fixture-switcher" aria-label="Campus atmosphere workshop">
-          <button type="button" data-fixture="early" aria-pressed="true">Early</button>
-          <button type="button" data-fixture="prosperous" aria-pressed="false">Prosperous</button>
-          <button type="button" data-fixture="strained" aria-pressed="false">Strained</button>
-          <button type="button" data-fixture="austerity" aria-pressed="false">Austerity</button>
-        </nav>
-        <p class="atmosphere-note" id="atmosphere-note">The quad feels hopeful, but every building still looks like a compromise.</p>
-        <div class="selected-building" id="selected-building">
-          <small>Selected building</small>
-          <strong>Academics · Level 3</strong>
-          <span>Solid foundation. Upgrade cost preview comes later.</span>
-        </div>
-        <div class="architecture-options">
-          <small>Architecture option</small>
-          <div role="group" aria-label="Selected building architecture">
-            <button type="button" data-building-variant="heritage" aria-pressed="true">Heritage</button>
-            <button type="button" data-building-variant="contemporary" aria-pressed="false">Contemporary</button>
-          </div>
-        </div>
-        <h3>Campus activity</h3>
+        <h3>Recent activity</h3>
         <ol id="activity-feed" aria-live="polite">
           <li>Preparing the quad…</li>
         </ol>
@@ -154,28 +133,27 @@
         <span><small>Reputation</small> <b id="reputation-value">44</b></span>
         <span><small>Alumni</small> <b id="alumni-value">16,250</b></span>
       </div>
-      <div class="management__actions" role="group" aria-label="Management sections">
-        <button type="button">Executive summary</button>
-        <button type="button">Resource allocation</button>
-        <button type="button">Board book</button>
-      </div>
+      <nav class="management__actions" id="tray-navigation" aria-label="Management sections">
+        <button type="button" data-management-section="briefing" aria-pressed="true">Briefing</button>
+        <button type="button" data-management-section="allocate" aria-pressed="false">Allocate</button>
+        <button type="button" data-management-section="programs" aria-pressed="false">Programs</button>
+        <button type="button" data-management-section="rivals" aria-pressed="false">Rivals</button>
+        <button type="button" data-management-section="boardBook" aria-pressed="false">Board Book</button>
+      </nav>
       <div class="management__tray" id="management-tray" aria-hidden="true" inert>
-        <div class="tray-copy">
-          <p class="eyebrow">President's desk</p>
-          <h2>Executive summary</h2>
-          <p>The campus remains in view while reports, allocations, and board records slide up from this edge.</p>
-        </div>
-        <div class="tray-preview" aria-label="Provisional executive summary">
-          <article><small>Position</small><strong>2nd of 4</strong><span>DUMP ranking</span></article>
-          <article><small>Term outlook</small><strong>Guarded</strong><span>Two actions available</span></article>
-          <article><small>Pressure</small><strong>Admissions</strong><span>Rivals are gaining pull</span></article>
+        <div id="tray-content" class="tray-content">
+          <div class="tray-copy">
+            <p class="eyebrow">President's desk</p>
+            <h2>Briefing</h2>
+            <p>Open a game to review the campus.</p>
+          </div>
         </div>
       </div>
     </section>
   </div>
 
-  <section class="startup" id="startup" aria-labelledby="startup-title">
-    <div>
+  <section class="startup" id="startup" aria-label="Game setup and continuity">
+    <div id="setup-panel" class="startup__panel">
       <span class="startup__seal" aria-hidden="true">SS</span>
       <h2 id="startup-title">Opening the gates</h2>
       <p id="startup-message">Validating the official campus records…</p>
@@ -186,6 +164,7 @@
   <dialog id="game-dialog" aria-labelledby="dialog-title">
     <h2 id="dialog-title">Safety School</h2>
     <div id="dialog-content"></div>
+    <div class="dialog-actions" id="dialog-actions"></div>
   </dialog>
 </body>
 </html>
