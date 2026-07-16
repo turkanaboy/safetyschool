@@ -8,6 +8,7 @@
   },
   "scripts": {
     "test": "node --test",
+    "play": "node web/server.js",
     "validate:content": "node engine/content-node.js",
     "fuzz": "node sim/run.js --fuzz",
     "simulate": "node sim/run.js",

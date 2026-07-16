@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#172b24">
+  <title>Safety School</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <div class="game-shell">
+    <header class="topbar">
+      <a class="wordmark" href="/" aria-label="Safety School home">
+        <span class="wordmark__crest" aria-hidden="true">SS</span>
+        <span>Safety School</span>
+      </a>
+      <nav class="rankings" aria-label="DUMP rankings">
+        <span class="rankings__label"><abbr title="Definitive Ultimate Marketing Ploy">DUMP</abbr> Rankings</span>
+        <ol>
+          <li><span>1</span> Northbridge</li>
+          <li><span>2</span> You</li>
+          <li><span>3</span> Saint Cadmus</li>
+          <li><span>4</span> Westlake</li>
+        </ol>
+      </nav>
+      <output class="status-chip" id="game-status" aria-live="polite">Loading campus…</output>
+    </header>
+
+    <main class="playing-area" aria-label="Campus board">
+      <section class="board-stage" aria-labelledby="campus-heading">
+        <div class="rival-spaces" aria-label="Rival campuses">
+          <button type="button">Northbridge</button>
+          <button type="button">Saint Cadmus</button>
+          <button type="button">Westlake</button>
+        </div>
+        <div class="campus-placeholder">
+          <div>
+            <p class="eyebrow">Your campus</p>
+            <h1 id="campus-heading">Founders Green</h1>
+            <p>The campus-board visual workshop loads here.</p>
+          </div>
+        </div>
+      </section>
+
+      <aside class="activity" aria-labelledby="activity-heading">
+        <div>
+          <p class="eyebrow">Term 1 · Fall</p>
+          <h2 id="activity-heading">Campus activity</h2>
+        </div>
+        <ol id="activity-feed" aria-live="polite">
+          <li>Preparing the quad…</li>
+        </ol>
+      </aside>
+    </main>
+
+    <section class="management" aria-label="Campus management">
+      <button class="tray-handle" type="button" aria-expanded="false" aria-controls="management-tray">
+        <span>Management desk</span>
+        <span aria-hidden="true">⌃</span>
+      </button>
+      <div class="management__summary" aria-label="Key resources">
+        <span><small>Treasury</small> $24m</span>
+        <span><small>Students</small> 8,400</span>
+        <span><small>Reputation</small> 44</span>
+        <span><small>Alumni</small> 16,250</span>
+      </div>
+      <div class="management__actions" role="group" aria-label="Management sections">
+        <button type="button">Executive summary</button>
+        <button type="button">Resource allocation</button>
+        <button type="button">Board book</button>
+      </div>
+      <div class="management__tray" id="management-tray" hidden>
+        <h2>Management desk</h2>
+        <p>Detailed management panels will live here while the campus stays visible.</p>
+      </div>
+    </section>
+  </div>
+
+  <section class="startup" id="startup" aria-labelledby="startup-title">
+    <div>
+      <span class="startup__seal" aria-hidden="true">SS</span>
+      <h2 id="startup-title">Opening the gates</h2>
+      <p id="startup-message">Validating the official campus records…</p>
+      <button id="retry-startup" type="button" hidden>Retry</button>
+    </div>
+  </section>
+
+  <dialog id="game-dialog" aria-labelledby="dialog-title">
+    <h2 id="dialog-title">Safety School</h2>
+    <div id="dialog-content"></div>
+  </dialog>
+</body>
+</html>
