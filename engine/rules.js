@@ -112,7 +112,7 @@ function actionCost(action, player, content, disruption, headline) {
 }
 
 function validateAllocations(state, command, content, disruption, headline) {
-  requireValue(command?.type === 'round', 'command.type', 'expected round');
+  requireValue(['round', 'allocate'].includes(command?.type), 'command.type', 'expected round or allocate');
   requireValue(command.allocations && typeof command.allocations === 'object', 'command.allocations', 'must be an object');
   const activeIds = new Set(activePlayers(state).map((player) => player.id));
   for (const id of Object.keys(command.allocations)) {
@@ -376,12 +376,11 @@ function resolveRecruiting(state, allocations, content, disruption, headline, ev
   });
 }
 
-export function resolveRoundThroughRecruiting(inputState, command, content) {
+export function startRound(inputState, content) {
   const state = structuredClone(inputState);
   requireValue(!state.finished, 'state.finished', 'game is already complete');
   requireValue(state.round < content.config.simulationAcceptanceCriteria.maxGameRounds, 'state.round', 'maximum game length reached');
   requireValue(state.phase === 'ready', 'state.phase', 'game is awaiting another command');
-  state.phase = 'resolving';
   state.round += 1;
   state.year = Math.ceil(state.round / content.config.gameLength.roundsPerYear);
   state.roundOfYear = ((state.round - 1) % content.config.gameLength.roundsPerYear) + 1;
@@ -393,11 +392,29 @@ export function resolveRoundThroughRecruiting(inputState, command, content) {
   events.push({ type: 'headlineRevealed', cardId: headline.id });
   const disruption = disruptionCard(state, content);
   resolveIncome(state, content, disruption, headline, events);
+  state.phase = 'allocation';
+  return { state, events, rng: state.rng, pendingDecision: null };
+}
+
+export function resolveAllocationThroughRecruiting(inputState, command, content) {
+  const state = structuredClone(inputState);
+  requireValue(state.phase === 'allocation', 'state.phase', 'game is not accepting allocations');
+  state.phase = 'resolving';
+  const events = [];
+  const headline = headlineCard(state, content);
+  const disruption = disruptionCard(state, content);
   const normalized = validateAllocations(state, command, content, disruption, headline);
   resolveActions(state, normalized, content, disruption, headline, events);
   resolveRecruiting(state, normalized, content, disruption, headline, events);
   state.phase = 'ready';
   return { state, events, rng: state.rng, pendingDecision: null };
+}
+
+export function resolveRoundThroughRecruiting(inputState, command, content) {
+  requireValue(command?.type === 'round', 'command.type', 'expected round');
+  const started = startRound(inputState, content);
+  const allocated = resolveAllocationThroughRecruiting(started.state, { type: 'allocate', allocations: command.allocations }, content);
+  return { ...allocated, events: [...started.events, ...allocated.events] };
 }
 
 function priorityDistance(state, player) {
@@ -684,6 +701,11 @@ function continueAfterRecruiting(state, content, events) {
 
 export function resolveRound(inputState, command, content) {
   const recruiting = resolveRoundThroughRecruiting(inputState, command, content);
+  return continueAfterRecruiting(recruiting.state, content, recruiting.events);
+}
+
+export function resolveAllocation(inputState, command, content) {
+  const recruiting = resolveAllocationThroughRecruiting(inputState, command, content);
   return continueAfterRecruiting(recruiting.state, content, recruiting.events);
 }
 
@@ -976,4 +998,136 @@ function finishRound(state, content, events) {
   state.phase = state.finished ? 'complete' : 'ready';
   persistSnapshot(state, events);
   return { state, events, rng: state.rng, pendingDecision: null };
+}
+
+export function observeGame(state, playerId, content) {
+  const own = state.players.find((player) => player.id === playerId);
+  requireValue(own, 'playerId', 'unknown player');
+  const publicThroughYear = Math.max(2, state.year + 1);
+  const publicDisruptions = Object.fromEntries(Object.entries(state.disruptions.revealedByYear)
+    .filter(([year]) => Number(year) <= publicThroughYear));
+  const opponents = state.players.filter((player) => player.id !== playerId).map((player) => ({
+    id: player.id,
+    name: player.name,
+    seat: player.seat,
+    active: player.active,
+    students: player.students,
+    reputation: player.reputation,
+    alumni: player.alumni,
+    departments: structuredClone(player.departments),
+    programs: [...player.programs],
+    yearLosses: player.yearLosses,
+    treasuryBand: treasuryBand(player.treasury, content.config),
+    ...(player.effects.treasuryRevealedRounds > 0 ? { treasury: player.treasury } : {}),
+  }));
+  return {
+    schemaVersion: state.schemaVersion,
+    phase: state.phase,
+    round: state.round,
+    year: state.year,
+    roundOfYear: state.roundOfYear,
+    prioritySeat: state.prioritySeat,
+    programsEnabled: state.programsEnabled,
+    headline: state.headline,
+    activeDisruption: state.disruptions.active,
+    publicDisruptions,
+    privateDisruptions: structuredClone(state.disruptions.privateByPlayer?.[playerId] ?? {}),
+    own: structuredClone(own),
+    opponents,
+    pendingDecision: state.pendingDecision?.playerId === playerId ? structuredClone(state.pendingDecision) : null,
+    finished: state.finished,
+    winnerId: state.winnerId,
+  };
+}
+
+function upkeepSavedBySale(player, department, config) {
+  const current = player.departments[department];
+  const multiplier = config.departmentCostCurve.costMultipliers[department]
+    ?? config.departmentCostCurve.costMultipliers.default;
+  return (config.departmentCostCurve.upkeepAtLevel[current]
+    - config.departmentCostCurve.upkeepAtLevel[current - 1]) * multiplier;
+}
+
+export function legalActions(state, playerId, content) {
+  const player = state.players.find((candidate) => candidate.id === playerId);
+  requireValue(player?.active, 'playerId', 'player is not active');
+
+  if (state.phase === 'pending') {
+    requireValue(state.pendingDecision?.playerId === playerId, 'playerId', 'another player owns the pending decision');
+    const pending = state.pendingDecision;
+    if (pending.type === 'adminCrisis') {
+      return {
+        kind: 'decision',
+        commands: pending.choices.map((choice) => ({ type: 'decision', decision: pending.type, playerId, choice })),
+      };
+    }
+    return {
+      kind: 'decision',
+      commands: pending.choices.map((department) => ({
+        type: 'decision',
+        decision: pending.type,
+        playerId,
+        department,
+        recovery: saleRecovery(player, department, content.config),
+        upkeepSaved: upkeepSavedBySale(player, department, content.config),
+      })),
+    };
+  }
+
+  requireValue(state.phase === 'allocation', 'state.phase', 'game is not accepting actions');
+  const disruption = disruptionCard(state, content);
+  const headline = headlineCard(state, content);
+  const actions = [{ action: { type: 'bank' }, cost: 0 }];
+  const config = content.config;
+  const floor = config.startingState.allDepartmentsLevel;
+  const maxLevel = Math.max(...Object.keys(config.departmentCostCurve.buildCostToReachLevel).map(Number));
+
+  for (const department of DEPARTMENTS) {
+    if (player.departments[department] > floor) {
+      actions.push({
+        action: { type: 'sell', department },
+        cost: 0,
+        recovery: saleRecovery(player, department, config),
+        upkeepSaved: upkeepSavedBySale(player, department, config),
+      });
+    }
+    if (player.departments[department] < maxLevel
+      && (department !== 'admissions' || state.roundOfYear === config.gameLength.yearEndRound)) {
+      const cost = upgradeCost(player, department, config);
+      if (cost <= player.treasury) actions.push({ action: { type: 'upgrade', department }, cost });
+    }
+  }
+
+  if (state.programsEnabled) {
+    const slots = config.programs.slotsByAcademicsLevel[player.departments.academics];
+    if (player.programs.length < slots) {
+      for (const program of Object.keys(config.programs.catalog)) {
+        if (player.programs.includes(program)) continue;
+        const cost = openProgramCost(program, disruption, config);
+        if (cost <= player.treasury) actions.push({ action: { type: 'openProgram', program }, cost });
+      }
+    }
+  }
+
+  if (!player.effects.campaignBlockedNextRound) {
+    const levelCap = config.departments.marketing.campaignSpendCapByLevel[player.departments.marketing];
+    const disruptionCap = effects(disruption, 'campaignSpendCap')[0]?.value ?? levelCap;
+    const spend = Math.min(levelCap, disruptionCap, Math.max(0, player.treasury));
+    if (spend > 0) actions.push({ action: { type: 'campaign', spend }, cost: spend });
+  }
+
+  const terms = poachTerms(disruption, headline, config);
+  if (terms.cost <= player.treasury) {
+    for (const target of activePlayers(state)) {
+      if (target.id !== player.id && target.yearLosses >= config.poaching.targetEligibilityMinStudentsLostThisYear) {
+        actions.push({ action: { type: 'poach', targetPlayerId: target.id }, cost: terms.cost });
+      }
+    }
+  }
+
+  return {
+    kind: 'allocation',
+    maxActions: config.allocation.maxActionsPerRound + player.effects.extraActionsNextRound,
+    actions,
+  };
 }

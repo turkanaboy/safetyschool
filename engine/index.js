@@ -1,9 +1,10 @@
 import { canonicalStringify, DEPARTMENTS } from './content.js';
 import { createRng, shuffle } from './rng.js';
-import { resolveRound, resumeDecision } from './rules.js';
+import { resolveAllocation, resolveRound, resumeDecision, startRound } from './rules.js';
 
 export { roundMoney } from './rules.js';
 export { healthScore } from './rules.js';
+export { legalActions, observeGame } from './rules.js';
 
 export const STATE_SCHEMA_VERSION = 1;
 export const ENGINE_VERSION = '0.1.0';
@@ -151,7 +152,8 @@ export function canonicalStateBytes(state) {
 
 export function advanceGame(state, command, content) {
   assertCompatibleContent(state, content);
-  return command?.type === 'round'
-    ? resolveRound(state, command, content)
-    : resumeDecision(state, command, content);
+  if (command?.type === 'startRound') return startRound(state, content);
+  if (command?.type === 'allocate') return resolveAllocation(state, command, content);
+  if (command?.type === 'round') return resolveRound(state, command, content);
+  return resumeDecision(state, command, content);
 }
