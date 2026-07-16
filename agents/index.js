@@ -6,7 +6,6 @@ export const AGENT_TYPES = Object.freeze([
   'steadyHand', 'gambler', 'prestigePlay', 'fortress', 'oracle', 'random',
 ]);
 
-const CASH_RESERVE = 12;
 const CASH_RESERVES = Object.freeze({
   steadyHand: 5,
   gambler: 12,
@@ -56,7 +55,7 @@ function chooseScriptedAllocation(type, observation, legal) {
 
   const add = (option) => {
     if (!option || selected.length >= legal.maxActions || usedTypes.has(option.action.type)) return false;
-    const requiredReserve = option.cost > 0 ? (CASH_RESERVES[type] ?? CASH_RESERVE) : 0;
+    const requiredReserve = option.cost > 0 ? CASH_RESERVES[type] : 0;
     if (spend + option.cost > observation.own.treasury - requiredReserve + 1e-9) return false;
     selected.push(option.action);
     usedTypes.add(option.action.type);
