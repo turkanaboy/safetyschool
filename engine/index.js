@@ -1,6 +1,6 @@
 import { canonicalStringify, DEPARTMENTS } from './content.js';
 import { createRng, shuffle } from './rng.js';
-import { resolveRoundThroughRecruiting } from './rules.js';
+import { resolveRound, resumeDecision } from './rules.js';
 
 export { roundMoney } from './rules.js';
 
@@ -150,5 +150,7 @@ export function canonicalStateBytes(state) {
 
 export function advanceGame(state, command, content) {
   assertCompatibleContent(state, content);
-  return resolveRoundThroughRecruiting(state, command, content);
+  return command?.type === 'round'
+    ? resolveRound(state, command, content)
+    : resumeDecision(state, command, content);
 }

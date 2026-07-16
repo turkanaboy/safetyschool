@@ -58,6 +58,16 @@ function upgradeCost(player, department, config) {
   return (cumulative[next] - currentCost) * multiplier;
 }
 
+function saleRecovery(player, department, config) {
+  const current = player.departments[department];
+  const cumulative = config.departmentCostCurve.buildCostToReachLevel;
+  const currentCost = cumulative[current];
+  const priorCost = current - 1 === config.startingState.allDepartmentsLevel ? 0 : cumulative[current - 1];
+  const multiplier = config.departmentCostCurve.costMultipliers[department]
+    ?? config.departmentCostCurve.costMultipliers.default;
+  return (currentCost - priorCost) * multiplier * config.insolvencyAndElimination.fireSaleRecoveryFraction;
+}
+
 function disruptionCard(state, content) {
   return state.disruptions.active
     ? cardById(content.cards.annualDisruptions, state.disruptions.active)
@@ -161,7 +171,7 @@ function validateAllocations(state, command, content, disruption, headline) {
       spend += actionCost(action, player, content, disruption, headline);
     });
 
-    requireValue(spend <= player.treasury + 1e-9, path, 'committed spend exceeds treasury before sale proceeds');
+    requireValue(spend === 0 || spend <= player.treasury + 1e-9, path, 'committed spend exceeds treasury before sale proceeds');
     normalized[player.id] = actions;
   }
   return normalized;
@@ -203,6 +213,7 @@ function resolveIncome(state, content, disruption, headline, events) {
       : 0;
     const upkeep = upkeepBase * disease * allUpkeep * (1 - adminDiscount);
     player.treasury = roundMoney(player.treasury + tuition - upkeep);
+    player.paidUpkeepThisRound = upkeep;
     records[player.id] = { tuition, upkeep, treasury: player.treasury };
   }
   events.push({ type: 'incomeResolved', players: records });
@@ -219,8 +230,7 @@ function resolveActions(state, allocations, content, disruption, headline, event
       if (!action) continue;
 
       if (type === 'sell') {
-        const recovery = upgradeCost({ ...player, departments: { ...player.departments, [action.department]: player.departments[action.department] - 1 } }, action.department, config)
-          * config.insolvencyAndElimination.fireSaleRecoveryFraction;
+        const recovery = saleRecovery(player, action.department, config);
         player.departments[action.department] -= 1;
         player.treasury = roundMoney(player.treasury + recovery);
         records.push({ playerId: player.id, type, department: action.department, recovery });
@@ -385,4 +395,332 @@ export function resolveRoundThroughRecruiting(inputState, command, content) {
   resolveRecruiting(state, normalized, content, disruption, headline, events);
   state.phase = 'ready';
   return { state, events, rng: state.rng, pendingDecision: null };
+}
+
+function priorityDistance(state, player) {
+  return (player.seat - state.prioritySeat + state.players.length) % state.players.length;
+}
+
+function awardRaceReward(state, content, events) {
+  const disruption = disruptionCard(state, content);
+  const race = effects(disruption, 'raceReward')[0];
+  if (!race || state.disruptions.claimedRaceRewards.includes(disruption.id)) return;
+  const eligible = activePlayers(state)
+    .filter((player) => player.reputation >= (race.condition.reputationAtLeast ?? Infinity))
+    .sort((a, b) => priorityDistance(state, a) - priorityDistance(state, b));
+  if (eligible.length === 0) return;
+  const winner = eligible[0];
+  const conversions = race.reward.bonusConversions ?? 0;
+  winner.students += Math.floor(conversions);
+  state.disruptions.claimedRaceRewards.push(disruption.id);
+  events.push({ type: 'raceReward', cardId: disruption.id, playerId: winner.id, bonusConversions: conversions });
+}
+
+function resolveAthletics(state, content, events) {
+  const extras = new Set();
+  if (state.roundOfYear !== content.config.gameLength.athleticsSeasonRound) return extras;
+  const disruption = disruptionCard(state, content);
+  const payout = effects(disruption, 'athleticsPayoutMultiplier')[0] ?? {};
+  const athletics = content.config.departments.athletics;
+
+  for (const player of activePlayers(state)) {
+    const next = nextRng(state.rng);
+    state.rng = next.rng;
+    const odds = athletics.seasonOddsByLevel[player.departments.athletics];
+    const outcome = next.value < odds.great
+      ? 'great'
+      : next.value < odds.great + odds.good ? 'good' : 'losing';
+    const configured = athletics[`${outcome}Season`];
+    const multiplier = outcome === 'great' ? (payout.great ?? 1) : outcome === 'losing' ? (payout.losing ?? 1) : 1;
+    player.treasury = roundMoney(player.treasury + (configured.money ?? 0) * multiplier);
+    player.reputation = clamp(player.reputation + (configured.reputation ?? 0) * multiplier, 0, 100);
+    if (configured.bonusConversionsNextRound) player.effects.bonusConversionsPending += configured.bonusConversionsNextRound;
+    if (configured.drawExtraCrisisTargetedAtAthletics) extras.add(player.id);
+    events.push({ type: 'athleticsSeason', playerId: player.id, outcome, roll: next.value });
+  }
+  awardRaceReward(state, content, events);
+  return extras;
+}
+
+function targetCard(state, player, card, kind, content) {
+  const next = nextRng(state.rng);
+  state.rng = next.rng;
+  const weights = DEPARTMENTS.map((department) => {
+    if (kind !== 'crisis' || !state.programsEnabled) return 1;
+    return player.programs.reduce((weight, program) => (
+      weight * (content.config.programs.catalog[program].crisisTargetWeightModifiers?.[department] ?? 1)
+    ), 1);
+  });
+  if (card.target !== 'random') return { target: card.target, weights, value: next.value };
+  let needle = next.value * weights.reduce((total, weight) => total + weight, 0);
+  for (let index = 0; index < weights.length; index += 1) {
+    needle -= weights[index];
+    if (needle < 0) return { target: DEPARTMENTS[index], weights, value: next.value };
+  }
+  return { target: DEPARTMENTS.at(-1), weights, value: next.value };
+}
+
+function applyEffect(player, effect, factor, state, skippedEffects) {
+  const scale = effect.scalable ? factor : 1;
+  const value = typeof effect.value === 'number' ? effect.value * scale : effect.value;
+  switch (effect.type) {
+    case 'money':
+      player.treasury = roundMoney(player.treasury + value);
+      break;
+    case 'reputation':
+      player.reputation = clamp(player.reputation + value, 0, 100);
+      break;
+    case 'bonusConversionsThisRound':
+      player.students += Math.floor(value);
+      break;
+    case 'bonusConversionsNextRound':
+      player.effects.bonusConversionsPending += Math.floor(value);
+      break;
+    case 'retentionDeltaThisYear':
+      player.effects.retentionDeltaThisYear += value;
+      break;
+    case 'campaignYieldFloorBonusNext':
+      player.effects.campaignYieldFloorBonusNext += value;
+      break;
+    case 'campaignYieldLockNext':
+      player.effects.campaignYieldLockNext = value;
+      break;
+    case 'campaignPullMultiplierNext':
+      player.effects.campaignPullMultiplierNext *= value;
+      break;
+    case 'campaignBlockedNextRound':
+      player.effects.campaignBlockedNextRound = Boolean(value);
+      break;
+    case 'upkeepRefundFraction':
+      player.treasury = roundMoney(player.treasury + player.paidUpkeepThisRound * value);
+      break;
+    case 'temporaryCapacityThisYear':
+      player.effects.temporaryCapacityThisYear += Math.floor(value);
+      break;
+    case 'donationMultiplierThisYearEnd':
+      player.effects.donationMultiplierThisYearEnd *= value;
+      break;
+    case 'nextCrisisSeverityReduction':
+      player.effects.nextCrisisSeverityReduction += value;
+      break;
+    case 'extraActionsNextRound':
+      player.effects.extraActionsNextRound += value;
+      break;
+    case 'treasuryRevealedRounds':
+      player.effects.treasuryRevealedRounds = Math.max(player.effects.treasuryRevealedRounds, value);
+      break;
+    case 'recruitingPenaltyNextRound':
+      player.effects.recruitingPenaltyNextRound *= value;
+      break;
+    case 'programRider':
+      if (!state.programsEnabled || !player.programs.includes(effect.program)) {
+        skippedEffects.push(effect.type);
+      } else {
+        applyEffect(player, effect.bonus, 1, state, skippedEffects);
+      }
+      break;
+    default:
+      throw new TypeError(`card effect: unhandled type ${effect.type}`);
+  }
+}
+
+function applyCard(state, context, content, events) {
+  const player = state.players.find((candidate) => candidate.id === context.playerId);
+  const source = context.kind === 'fortune' ? content.cards.fortuneCards : content.cards.crisisCards;
+  const card = cardById(source, context.cardId);
+  const targetLevel = player.departments[context.target];
+  const targetFactor = context.kind === 'fortune'
+    ? (targetLevel + 1) / 3
+    : (6 - targetLevel) / 5;
+  const severityFactor = context.kind === 'crisis' ? context.effectiveSeverity / card.severity : 1;
+  const factor = targetFactor * severityFactor;
+  const skippedEffects = [];
+  for (const effect of card.effects) applyEffect(player, effect, factor, state, skippedEffects);
+  events.push({
+    type: 'cardResolved',
+    kind: context.kind,
+    cardId: card.id,
+    playerId: player.id,
+    target: context.target,
+    targetLevel,
+    targetWeights: context.targetWeights,
+    targetRngValue: context.targetRngValue,
+    targetRngConsumed: 1,
+    effectiveSeverity: context.effectiveSeverity,
+    factor,
+    extra: context.extra,
+    effectTypes: card.effects.map((effect) => effect.type),
+    skippedEffects,
+  });
+  awardRaceReward(state, content, events);
+}
+
+function nextCardContext(state, entry, content) {
+  const player = state.players.find((candidate) => candidate.id === entry.playerId);
+  const source = entry.kind === 'fortune' ? content.cards.fortuneCards : content.cards.crisisCards;
+  const card = drawDeck(state, entry.kind, source);
+  const targetResult = entry.extra
+    ? (() => {
+      const next = nextRng(state.rng);
+      state.rng = next.rng;
+      return { target: 'athletics', weights: DEPARTMENTS.map(() => 1), value: next.value };
+    })()
+    : targetCard(state, player, card, entry.kind, content);
+  let effectiveSeverity = card.severity;
+  if (entry.kind === 'crisis') {
+    if (player.departments.administration >= 2) {
+      effectiveSeverity -= content.config.departments.administration.tiers['2'].crisisSeverityReduction;
+    }
+    effectiveSeverity -= player.effects.nextCrisisSeverityReduction;
+    player.effects.nextCrisisSeverityReduction = 0;
+    effectiveSeverity = Math.max(1, effectiveSeverity);
+  }
+  return {
+    ...entry,
+    cardId: card.id,
+    target: targetResult.target,
+    targetWeights: targetResult.weights,
+    targetRngValue: targetResult.value,
+    effectiveSeverity,
+  };
+}
+
+function beginAusterity(state, content, events) {
+  state.resolution = { step: 'austerity', playerIndex: 0 };
+  return continueAusterity(state, content, events);
+}
+
+function finishAusterity(state, events) {
+  const eliminated = activePlayers(state).filter((player) => (
+    player.students < 1000
+    || (player.treasury < 0 && DEPARTMENTS.every((department) => player.departments[department] === 1))
+  ));
+  for (const player of eliminated) {
+    player.active = false;
+    player.eliminatedRound = state.round;
+  }
+  if (eliminated.length) events.push({ type: 'playersEliminated', playerIds: eliminated.map((player) => player.id) });
+  delete state.resolution;
+  state.pendingDecision = null;
+  state.phase = 'ready';
+  return { state, events, rng: state.rng, pendingDecision: null };
+}
+
+function continueAusterity(state, content, events) {
+  while (state.resolution.playerIndex < state.players.length) {
+    const player = state.players[state.resolution.playerIndex];
+    if (!player.active || player.treasury >= 0) {
+      state.resolution.playerIndex += 1;
+      continue;
+    }
+    player.enteredAusterity = true;
+    const choices = DEPARTMENTS.filter((department) => player.departments[department] > 1);
+    if (choices.length === 0) {
+      state.resolution.playerIndex += 1;
+      continue;
+    }
+    state.pendingDecision = { type: 'forcedSale', playerId: player.id, choices };
+    state.phase = 'pending';
+    return { state, events, rng: state.rng, pendingDecision: structuredClone(state.pendingDecision) };
+  }
+  return finishAusterity(state, events);
+}
+
+function resolveStrain(state, content, events) {
+  const disruption = disruptionCard(state, content);
+  const firstOffense = effects(disruption, 'strainFirstOffensePenalty')[0]?.value ?? 0;
+  for (const player of activePlayers(state)) {
+    const programCapacity = state.programsEnabled
+      ? player.programs.reduce((total, program) => total + (content.config.programs.catalog[program].academicsCapacityBonus ?? 0), 0)
+      : 0;
+    const capacity = player.departments.academics * content.config.departments.academics.studentCapacityPerLevel
+      + programCapacity + player.effects.temporaryCapacityThisYear;
+    if (player.students <= capacity) continue;
+    const penalty = content.config.departments.academics.strainReputationPenaltyPerRound
+      + (player.strainedRounds === 0 ? firstOffense : 0);
+    player.reputation = clamp(player.reputation - penalty, 0, 100);
+    player.strainedRounds += 1;
+    events.push({ type: 'strainApplied', playerId: player.id, capacity, students: player.students, reputationPenalty: penalty });
+  }
+}
+
+function continueChance(state, queue, content, events) {
+  while (queue.length) {
+    const context = nextCardContext(state, queue.shift(), content);
+    const player = state.players.find((candidate) => candidate.id === context.playerId);
+    const canCancel = context.kind === 'crisis'
+      && player.departments.administration >= 5
+      && player.adminCancelsUsed < content.config.departments.administration.tiers['5'].crisisCancelsPerYear;
+    if (canCancel) {
+      state.resolution = { step: 'chance', queue, current: context };
+      state.pendingDecision = {
+        type: 'adminCrisis',
+        playerId: player.id,
+        cardId: context.cardId,
+        target: context.target,
+        effectiveSeverity: context.effectiveSeverity,
+        choices: ['cancel', 'keep'],
+      };
+      state.phase = 'pending';
+      events.push({ ...state.pendingDecision, type: 'cardAwaitingDecision' });
+      return { state, events, rng: state.rng, pendingDecision: structuredClone(state.pendingDecision) };
+    }
+    applyCard(state, context, content, events);
+  }
+  resolveStrain(state, content, events);
+  return beginAusterity(state, content, events);
+}
+
+function continueAfterRecruiting(state, content, events) {
+  awardRaceReward(state, content, events);
+  const extraCrises = resolveAthletics(state, content, events);
+  const queue = [];
+  for (const player of activePlayers(state)) {
+    queue.push({ playerId: player.id, kind: 'fortune', extra: false });
+    queue.push({ playerId: player.id, kind: 'crisis', extra: false });
+    if (extraCrises.has(player.id)) queue.push({ playerId: player.id, kind: 'crisis', extra: true });
+  }
+  return continueChance(state, queue, content, events);
+}
+
+export function resolveRound(inputState, command, content) {
+  const recruiting = resolveRoundThroughRecruiting(inputState, command, content);
+  return continueAfterRecruiting(recruiting.state, content, recruiting.events);
+}
+
+export function resumeDecision(inputState, command, content) {
+  const state = structuredClone(inputState);
+  const pending = state.pendingDecision;
+  requireValue(state.phase === 'pending' && pending, 'state.pendingDecision', 'no decision is pending');
+  requireValue(command?.type === 'decision', 'command.type', 'expected decision');
+  requireValue(command.decision === pending.type, 'command.decision', `expected ${pending.type}`);
+  requireValue(command.playerId === pending.playerId, 'command.playerId', `expected ${pending.playerId}`);
+  const events = [];
+
+  if (pending.type === 'adminCrisis') {
+    requireValue(pending.choices.includes(command.choice), 'command.choice', 'must be cancel or keep');
+    const player = state.players.find((candidate) => candidate.id === pending.playerId);
+    const context = state.resolution.current;
+    if (command.choice === 'cancel') {
+      player.adminCancelsUsed += 1;
+      events.push({ type: 'cardCancelled', kind: 'crisis', cardId: context.cardId, playerId: player.id, target: context.target });
+    } else {
+      applyCard(state, context, content, events);
+    }
+    const queue = state.resolution.queue;
+    state.pendingDecision = null;
+    state.phase = 'resolving';
+    return continueChance(state, queue, content, events);
+  }
+
+  requireValue(pending.choices.includes(command.department), 'command.department', 'department is not eligible for forced sale');
+  const player = state.players.find((candidate) => candidate.id === pending.playerId);
+  const recovery = saleRecovery(player, command.department, content.config);
+  player.departments[command.department] -= 1;
+  player.treasury = roundMoney(player.treasury + recovery);
+  player.reputation = clamp(player.reputation - content.config.insolvencyAndElimination.forcedFireSaleReputationPenalty, 0, 100);
+  events.push({ type: 'forcedSale', playerId: player.id, department: command.department, recovery });
+  state.pendingDecision = null;
+  state.phase = 'resolving';
+  return continueAusterity(state, content, events);
 }
