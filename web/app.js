@@ -11,10 +11,12 @@ const trayButton = document.querySelector('.tray-handle');
 const tray = document.querySelector('#management-tray');
 const fixtureButtons = [...document.querySelectorAll('[data-fixture]')];
 const buildings = [...document.querySelectorAll('.building')];
+const variantButtons = [...document.querySelectorAll('[data-building-variant]')];
 const rivals = [...document.querySelectorAll('.rival-campus')];
 let contentVersion = '';
 let currentFixture = 'early';
 let selectedDepartment = 'academics';
+const buildingVariants = Object.fromEntries(buildings.map((building) => [building.dataset.department, 'heritage']));
 
 const departmentNames = {
   academics: 'Academics',
@@ -65,6 +67,13 @@ function selectBuilding(department) {
   document.querySelector('#selected-building span').textContent = level === '5'
     ? 'A campus landmark operating at full strength.'
     : level === '3' ? 'A proven department with visible room to grow.' : 'A modest foundation competing for scarce attention.';
+  variantButtons.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.buildingVariant === buildingVariants[department])));
+}
+
+function setBuildingVariant(variant) {
+  buildingVariants[selectedDepartment] = variant;
+  buildings.find((building) => building.dataset.department === selectedDepartment).dataset.variant = variant;
+  selectBuilding(selectedDepartment);
 }
 
 function renderFixture(name) {
@@ -77,9 +86,15 @@ function renderFixture(name) {
 
   buildings.forEach((building) => {
     const level = fixture.levels[building.dataset.department];
+    const isUpgrade = level > Number(building.dataset.level);
     building.dataset.level = String(level);
     building.setAttribute('aria-label', `${departmentNames[building.dataset.department]}, Level ${level}`);
     building.querySelector('.building__caption b').textContent = String(level);
+    if (isUpgrade && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      building.classList.remove('is-building');
+      void building.offsetWidth;
+      building.classList.add('is-building');
+    }
   });
 
   ['treasury', 'students', 'reputation', 'alumni'].forEach((resource, index) => {
@@ -125,6 +140,7 @@ trayButton.addEventListener('click', () => {
 });
 fixtureButtons.forEach((button) => button.addEventListener('click', () => renderFixture(button.dataset.fixture)));
 buildings.forEach((building) => building.addEventListener('click', () => selectBuilding(building.dataset.department)));
+variantButtons.forEach((button) => button.addEventListener('click', () => setBuildingVariant(button.dataset.buildingVariant)));
 rivals.forEach((rival) => rival.addEventListener('click', () => {
   const selected = rival.getAttribute('aria-pressed') === 'true';
   rivals.forEach((candidate) => candidate.setAttribute('aria-pressed', 'false'));

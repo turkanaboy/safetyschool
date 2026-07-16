@@ -90,5 +90,8 @@ test('campus workshop exposes six named building plots and atmosphere fixtures',
     }
     assert.match(shell.body, />Definitive Ultimate Marketing Ploy</);
     assert.equal(shell.body.match(/class="building\b/g)?.length, 6);
+    assert.equal(shell.body.match(/data-building-variant=/g)?.length, 2);
+    assert.match(shell.body, /Founders Clock/);
+    assert.match(shell.body, /class="protest"/);
   });
 });
