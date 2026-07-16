@@ -1,6 +1,6 @@
-import { AGENT_TYPES } from '/agents/index.js';
 import { validateContent } from '/engine/content.js';
 import { ENGINE_VERSION } from '/engine/index.js';
+import { RIVAL_SCHOOLS } from '/game.js';
 
 const startup = document.querySelector('#startup');
 const startupTitle = document.querySelector('#startup-title');
@@ -121,7 +121,7 @@ async function start() {
     const [config, cards] = await Promise.all([fetchJson('/balance-config.json'), fetchJson('/cards.json')]);
     const content = validateContent(config, cards);
     contentVersion = content.identity.configVersion;
-    status.textContent = `Engine ${ENGINE_VERSION} · ${AGENT_TYPES.length - 1} rivals ready`;
+    status.textContent = `Engine ${ENGINE_VERSION} · ${RIVAL_SCHOOLS.length} rival schools ready`;
     renderFixture(currentFixture);
     startup.hidden = true;
   } catch (error) {
