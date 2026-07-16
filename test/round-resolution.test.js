@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { canonicalStringify, loadContent, validateContent } from '../engine/content.js';
+import { canonicalStringify, validateContent } from '../engine/content.js';
+import { loadContent } from '../engine/content-node.js';
 import { advanceGame, createGame } from '../engine/index.js';
 
 const content = loadContent();

@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
 
 import { AGENT_TYPES, createAgent, POLICY_VERSION } from '../agents/index.js';
-import { canonicalStringify, canonicalize, digest, loadContent } from '../engine/content.js';
+import { canonicalStringify, canonicalize } from '../engine/content.js';
+import { loadContent } from '../engine/content-node.js';
 import {
   advanceGame, createGame, ENGINE_VERSION, legalActions, observeGame, STATE_SCHEMA_VERSION,
 } from '../engine/index.js';
@@ -28,8 +29,8 @@ function applyCommand(state, command, content, capture, commands, checkpoints, e
   if (capture) {
     commands.push(structuredClone(command));
     checkpoints.push({
-      stateDigest: digest(result.state),
-      eventDigest: digest(result.events),
+      stateDigest: content.digest(result.state),
+      eventDigest: content.digest(result.events),
       rngBytes: canonicalStringify(result.state.rng),
     });
     events.push(...result.events);
@@ -96,7 +97,7 @@ export function runGame({ seed, lineup, programsEnabled, content = loadContent()
     austerityEntrants: austerityEntrants.length,
     austeritySurvivors: austerityEntrants.filter((player) => player.active).length,
     replayOk: null,
-    finalStateDigest: digest(state),
+    finalStateDigest: content.digest(state),
   };
 
   const replayLog = captureReplay ? {
@@ -106,7 +107,7 @@ export function runGame({ seed, lineup, programsEnabled, content = loadContent()
       stateSchemaVersion: STATE_SCHEMA_VERSION,
       engineVersion: ENGINE_VERSION,
       policyVersion: POLICY_VERSION,
-      policyDigest: digest(POLICY_VERSION),
+      policyDigest: content.digest(POLICY_VERSION),
     },
     setup: structuredClone(setup),
     commands,
@@ -349,7 +350,7 @@ async function main() {
     allResults.push(...run.results);
   }
 
-  const scheduleIdentity = digest({ baseSeed, minGames, cycleSize: SCHEDULE_CYCLE_SIZE, agentTypes: AGENT_TYPES });
+  const scheduleIdentity = content.digest({ baseSeed, minGames, cycleSize: SCHEDULE_CYCLE_SIZE, agentTypes: AGENT_TYPES });
   const report = buildReport({
     branches,
     metadata: {
@@ -370,7 +371,7 @@ async function main() {
       cardsVersion: content.identity.cardsVersion,
       cardsDigest: content.identity.cardsDigest,
       policyVersion: POLICY_VERSION,
-      policyDigest: digest(POLICY_VERSION),
+      policyDigest: content.digest(POLICY_VERSION),
     },
     tuningChanges: TUNING_CHANGES,
   });

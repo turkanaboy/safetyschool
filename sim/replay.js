@@ -1,5 +1,5 @@
 import { POLICY_VERSION } from '../agents/index.js';
-import { canonicalStringify, digest } from '../engine/content.js';
+import { canonicalStringify } from '../engine/content.js';
 import { advanceGame, createGame, ENGINE_VERSION, STATE_SCHEMA_VERSION } from '../engine/index.js';
 
 export const REPLAY_SCHEMA_VERSION = 2;
@@ -15,7 +15,7 @@ export function replayGame(log, content) {
   }
   if (log.identity?.stateSchemaVersion !== STATE_SCHEMA_VERSION) return divergence(null, 'identity', 'stateSchemaVersion does not match');
   if (log.identity?.engineVersion !== ENGINE_VERSION) return divergence(null, 'identity', 'engineVersion does not match');
-  if (log.identity.policyDigest !== digest(POLICY_VERSION)) return divergence(null, 'identity', 'policyDigest does not match loaded policies');
+  if (log.identity.policyDigest !== content.digest(POLICY_VERSION)) return divergence(null, 'identity', 'policyDigest does not match loaded policies');
 
   let created;
   try {
@@ -37,8 +37,8 @@ export function replayGame(log, content) {
     events.push(...result.events);
     const expected = log.checkpoints[commandIndex];
     const actual = {
-      stateDigest: digest(state),
-      eventDigest: digest(result.events),
+      stateDigest: content.digest(state),
+      eventDigest: content.digest(result.events),
       rngBytes: canonicalStringify(state.rng),
     };
     for (const key of ['stateDigest', 'eventDigest', 'rngBytes']) {

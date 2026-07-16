@@ -1,6 +1,6 @@
 import { parentPort, workerData } from 'node:worker_threads';
 
-import { loadContent } from '../engine/content.js';
+import { loadContent } from '../engine/content-node.js';
 import { runSchedule } from './run.js';
 
 const content = loadContent();
