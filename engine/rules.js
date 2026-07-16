@@ -1,4 +1,4 @@
-import { DEPARTMENTS } from './content.js';
+import { canonicalStringify, DEPARTMENTS, digest } from './content.js';
 import { nextRng, shuffle } from './rng.js';
 
 export function roundMoney(value) {
@@ -125,7 +125,7 @@ function validateAllocations(state, command, content, disruption, headline) {
     const supplied = command.allocations[player.id] ?? [];
     requireValue(Array.isArray(supplied), path, 'must be an array');
     const actions = supplied.length === 0 ? [{ type: 'bank' }] : structuredClone(supplied);
-    const maxActions = 2 + player.effects.extraActionsNextRound;
+    const maxActions = content.config.allocation.maxActionsPerRound + player.effects.extraActionsNextRound;
     requireValue(actions.length <= maxActions, path, `maximum ${maxActions} actions`);
     const types = new Set();
     let spend = 0;
@@ -177,9 +177,11 @@ function validateAllocations(state, command, content, disruption, headline) {
   return normalized;
 }
 
-function applyHeadlineImmediate(player, headline) {
+function applyHeadlineImmediate(player, headline, config) {
   for (const effect of headline.effects) {
-    if (effect.type === 'reputationDeltaAll') player.reputation = clamp(player.reputation + effect.value, 0, 100);
+    if (effect.type === 'reputationDeltaAll') {
+      player.reputation = clamp(player.reputation + effect.value, config.resourceBounds.reputationMin, config.resourceBounds.reputationMax);
+    }
     if (effect.type === 'moneyDeltaAll') player.treasury = roundMoney(player.treasury + effect.value);
     if (effect.type === 'programMoneyDelta' && player.programs.includes(effect.program)) {
       player.treasury = roundMoney(player.treasury + effect.value);
@@ -195,7 +197,7 @@ function resolveIncome(state, content, disruption, headline, events) {
   const records = {};
 
   for (const player of activePlayers(state)) {
-    applyHeadlineImmediate(player, headline);
+    applyHeadlineImmediate(player, headline, config);
     const tuition = player.students * config.economy.tuitionPerStudentPerRound * tuitionMultiplier;
     let upkeepBase = 0;
     for (const department of DEPARTMENTS) {
@@ -377,6 +379,7 @@ function resolveRecruiting(state, allocations, content, disruption, headline, ev
 export function resolveRoundThroughRecruiting(inputState, command, content) {
   const state = structuredClone(inputState);
   requireValue(!state.finished, 'state.finished', 'game is already complete');
+  requireValue(state.round < content.config.simulationAcceptanceCriteria.maxGameRounds, 'state.round', 'maximum game length reached');
   requireValue(state.phase === 'ready', 'state.phase', 'game is awaiting another command');
   state.phase = 'resolving';
   state.round += 1;
@@ -433,7 +436,11 @@ function resolveAthletics(state, content, events) {
     const configured = athletics[`${outcome}Season`];
     const multiplier = outcome === 'great' ? (payout.great ?? 1) : outcome === 'losing' ? (payout.losing ?? 1) : 1;
     player.treasury = roundMoney(player.treasury + (configured.money ?? 0) * multiplier);
-    player.reputation = clamp(player.reputation + (configured.reputation ?? 0) * multiplier, 0, 100);
+    player.reputation = clamp(
+      player.reputation + (configured.reputation ?? 0) * multiplier,
+      content.config.resourceBounds.reputationMin,
+      content.config.resourceBounds.reputationMax,
+    );
     if (configured.bonusConversionsNextRound) player.effects.bonusConversionsPending += configured.bonusConversionsNextRound;
     if (configured.drawExtraCrisisTargetedAtAthletics) extras.add(player.id);
     events.push({ type: 'athleticsSeason', playerId: player.id, outcome, roll: next.value });
@@ -460,7 +467,7 @@ function targetCard(state, player, card, kind, content) {
   return { target: DEPARTMENTS.at(-1), weights, value: next.value };
 }
 
-function applyEffect(player, effect, factor, state, skippedEffects) {
+function applyEffect(player, effect, factor, state, content, skippedEffects) {
   const scale = effect.scalable ? factor : 1;
   const value = typeof effect.value === 'number' ? effect.value * scale : effect.value;
   switch (effect.type) {
@@ -468,7 +475,11 @@ function applyEffect(player, effect, factor, state, skippedEffects) {
       player.treasury = roundMoney(player.treasury + value);
       break;
     case 'reputation':
-      player.reputation = clamp(player.reputation + value, 0, 100);
+      player.reputation = clamp(
+        player.reputation + value,
+        content.config.resourceBounds.reputationMin,
+        content.config.resourceBounds.reputationMax,
+      );
       break;
     case 'bonusConversionsThisRound':
       player.students += Math.floor(value);
@@ -516,7 +527,7 @@ function applyEffect(player, effect, factor, state, skippedEffects) {
       if (!state.programsEnabled || !player.programs.includes(effect.program)) {
         skippedEffects.push(effect.type);
       } else {
-        applyEffect(player, effect.bonus, 1, state, skippedEffects);
+        applyEffect(player, effect.bonus, 1, state, content, skippedEffects);
       }
       break;
     default:
@@ -535,7 +546,7 @@ function applyCard(state, context, content, events) {
   const severityFactor = context.kind === 'crisis' ? context.effectiveSeverity / card.severity : 1;
   const factor = targetFactor * severityFactor;
   const skippedEffects = [];
-  for (const effect of card.effects) applyEffect(player, effect, factor, state, skippedEffects);
+  for (const effect of card.effects) applyEffect(player, effect, factor, state, content, skippedEffects);
   events.push({
     type: 'cardResolved',
     kind: context.kind,
@@ -590,26 +601,10 @@ function beginAusterity(state, content, events) {
   return continueAusterity(state, content, events);
 }
 
-function finishAusterity(state, events) {
-  const eliminated = activePlayers(state).filter((player) => (
-    player.students < 1000
-    || (player.treasury < 0 && DEPARTMENTS.every((department) => player.departments[department] === 1))
-  ));
-  for (const player of eliminated) {
-    player.active = false;
-    player.eliminatedRound = state.round;
-  }
-  if (eliminated.length) events.push({ type: 'playersEliminated', playerIds: eliminated.map((player) => player.id) });
-  delete state.resolution;
-  state.pendingDecision = null;
-  state.phase = 'ready';
-  return { state, events, rng: state.rng, pendingDecision: null };
-}
-
 function continueAusterity(state, content, events) {
   while (state.resolution.playerIndex < state.players.length) {
     const player = state.players[state.resolution.playerIndex];
-    if (!player.active || player.treasury >= 0) {
+    if (!player.active || player.treasury >= content.config.insolvencyAndElimination.austerityTreasuryThreshold) {
       state.resolution.playerIndex += 1;
       continue;
     }
@@ -623,7 +618,7 @@ function continueAusterity(state, content, events) {
     state.phase = 'pending';
     return { state, events, rng: state.rng, pendingDecision: structuredClone(state.pendingDecision) };
   }
-  return finishAusterity(state, events);
+  return finishRound(state, content, events);
 }
 
 function resolveStrain(state, content, events) {
@@ -638,7 +633,11 @@ function resolveStrain(state, content, events) {
     if (player.students <= capacity) continue;
     const penalty = content.config.departments.academics.strainReputationPenaltyPerRound
       + (player.strainedRounds === 0 ? firstOffense : 0);
-    player.reputation = clamp(player.reputation - penalty, 0, 100);
+    player.reputation = clamp(
+      player.reputation - penalty,
+      content.config.resourceBounds.reputationMin,
+      content.config.resourceBounds.reputationMax,
+    );
     player.strainedRounds += 1;
     events.push({ type: 'strainApplied', playerId: player.id, capacity, students: player.students, reputationPenalty: penalty });
   }
@@ -718,9 +717,263 @@ export function resumeDecision(inputState, command, content) {
   const recovery = saleRecovery(player, command.department, content.config);
   player.departments[command.department] -= 1;
   player.treasury = roundMoney(player.treasury + recovery);
-  player.reputation = clamp(player.reputation - content.config.insolvencyAndElimination.forcedFireSaleReputationPenalty, 0, 100);
+  player.reputation = clamp(
+    player.reputation - content.config.insolvencyAndElimination.forcedFireSaleReputationPenalty,
+    content.config.resourceBounds.reputationMin,
+    content.config.resourceBounds.reputationMax,
+  );
   events.push({ type: 'forcedSale', playerId: player.id, department: command.department, recovery });
   state.pendingDecision = null;
   state.phase = 'resolving';
   return continueAusterity(state, content, events);
+}
+
+export function healthScore(player, config) {
+  const weights = config.victory.tiebreakAtYear6.weights;
+  const departmentLevels = Object.values(player.departments).reduce((total, level) => total + level, 0);
+  return player.treasury * weights.treasury
+    + player.students * weights.students
+    + player.reputation * weights.reputation
+    + departmentLevels * weights.departmentLevel
+    + player.programs.length * weights.program
+    + player.alumni * weights.alumni;
+}
+
+function chooseHealthWinner(players, state, config) {
+  return [...players].sort((a, b) => (
+    healthScore(b, config) - healthScore(a, config)
+    || b.students - a.students
+    || b.alumni - a.alumni
+    || priorityDistance(state, a) - priorityDistance(state, b)
+  ))[0];
+}
+
+function finishGame(state, winner, reason, events) {
+  state.finished = true;
+  state.winnerId = winner.id;
+  state.endReason = reason;
+  events.push({ type: 'gameFinished', winnerId: winner.id, reason, round: state.round });
+}
+
+function resolveEliminations(state, candidates, content, events, stage) {
+  const unique = [...new Map(candidates.filter((player) => player.active).map((player) => [player.id, player])).values()];
+  if (unique.length === 0) return;
+  const eliminatedIds = new Set(unique.map((player) => player.id));
+  const survivors = activePlayers(state).filter((player) => !eliminatedIds.has(player.id));
+  const fraction = content.config.recruiting.eliminatedPlayerInheritance.fractionRedistributedToSurvivors;
+  const inheritancePool = unique.reduce((total, player) => total + Math.floor(player.students * fraction), 0);
+  const inheritances = {};
+
+  if (survivors.length > 0 && inheritancePool > 0) {
+    const reputationTotal = survivors.reduce((total, player) => total + player.reputation, 0);
+    for (const survivor of survivors) {
+      const share = reputationTotal > 0 ? survivor.reputation / reputationTotal : 1 / survivors.length;
+      const inherited = Math.floor(inheritancePool * share);
+      survivor.students += inherited;
+      inheritances[survivor.id] = inherited;
+    }
+  }
+
+  for (const player of unique) {
+    player.active = false;
+    player.eliminatedRound = state.round;
+  }
+  events.push({
+    type: 'playersEliminated',
+    stage,
+    playerIds: unique.map((player) => player.id),
+    inheritancePool,
+    inheritances,
+    inheritanceRemainder: inheritancePool - Object.values(inheritances).reduce((total, value) => total + value, 0),
+  });
+
+  if (survivors.length === 1) finishGame(state, survivors[0], 'soleSurvivor', events);
+  else if (survivors.length === 0) finishGame(state, chooseHealthWinner(unique, state, content.config), 'simultaneousElimination', events);
+}
+
+function treasuryBand(treasury, config) {
+  return config.standings.treasuryBands.find((band) => band.maxExclusive === null || treasury < band.maxExclusive).name;
+}
+
+function publishStandings(state, content, events) {
+  const standings = state.players.map((player) => ({
+    playerId: player.id,
+    active: player.active,
+    students: player.students,
+    reputation: player.reputation,
+    treasuryBand: treasuryBand(player.treasury, content.config),
+    ...(player.effects.treasuryRevealedRounds > 0 ? { treasury: player.treasury } : {}),
+    departments: structuredClone(player.departments),
+    programs: [...player.programs],
+    alumni: player.alumni,
+  }));
+  state.standings = standings;
+  events.push({ type: 'standingsPublished', round: state.round, players: structuredClone(standings) });
+  for (const player of state.players) {
+    if (player.effects.treasuryRevealedRounds > 0) player.effects.treasuryRevealedRounds -= 1;
+  }
+}
+
+function resolveGraduationAndAttrition(state, content, events) {
+  const config = content.config;
+  for (const player of activePlayers(state)) {
+    const yearStartStudents = player.students;
+    const seniors = Math.floor(player.students * config.economy.seniorCohortFractionOfStudents);
+    const graduationRate = config.departments.academics.graduationRateBase
+      + config.departments.academics.graduationRatePerLevel * player.departments.academics;
+    const graduates = Math.floor(seniors * graduationRate);
+    const studentsBefore = player.students;
+    player.students -= graduates;
+    player.alumni += graduates;
+    events.push({ type: 'graduationResolved', playerId: player.id, studentsBefore, seniors, graduationRate, graduates, studentsAfter: player.students });
+
+    const programRetention = state.programsEnabled
+      ? player.programs.reduce((total, program) => total + (config.programs.catalog[program].annualRetentionBonus ?? 0), 0)
+      : 0;
+    const retentionBeforeStrain = Math.min(
+      config.departments.studentAffairs.retentionCap,
+      config.departments.studentAffairs.retentionBase
+        + config.departments.studentAffairs.retentionPerLevel * player.departments.studentAffairs
+        + programRetention
+        + player.effects.retentionDeltaThisYear,
+    );
+    const strainPenalty = player.strainedRounds * config.departments.academics.strainAnnualRetentionPenaltyPerStrainedRound;
+    const retention = Math.max(0, retentionBeforeStrain - strainPenalty);
+    const attritionStart = player.students;
+    player.students = Math.floor(player.students * retention);
+    player.yearLosses = yearStartStudents - player.students;
+    events.push({
+      type: 'attritionResolved',
+      playerId: player.id,
+      studentsBefore: attritionStart,
+      retentionBeforeStrain,
+      strainPenalty,
+      retention,
+      studentsAfter: player.students,
+    });
+    player.strainedRounds = 0;
+  }
+}
+
+function resolveDonations(state, content, events) {
+  const config = content.config;
+  const disruption = disruptionCard(state, content);
+  const annualMultiplier = product(disruption, 'donationMultiplier');
+  for (const player of activePlayers(state)) {
+    let donationPerAlum = config.economy.donationPerAlumPerYearBase * player.departments.academics;
+    if (state.programsEnabled) {
+      for (const program of player.programs) {
+        const definition = config.programs.catalog[program];
+        const rider = programRider(disruption, program);
+        donationPerAlum += (definition.donationPerAlumBonusPerYear ?? 0) * (rider.donationBonusMultiplier ?? 1);
+      }
+    }
+    const donations = player.alumni * donationPerAlum * player.effects.donationMultiplierThisYearEnd * annualMultiplier;
+    const grants = state.programsEnabled
+      ? player.programs.reduce((total, program) => (
+        total + (config.programs.catalog[program].annualStateGrantPerAdminLevel ?? 0) * player.departments.administration
+      ), 0)
+      : 0;
+    player.treasury = roundMoney(player.treasury + donations + grants);
+    events.push({ type: 'donationsResolved', playerId: player.id, alumni: player.alumni, donationPerAlum, donations, grants, total: donations + grants });
+  }
+}
+
+function drawFutureDisruption(state, year) {
+  if (state.disruptions.revealedByYear[year]) return state.disruptions.revealedByYear[year];
+  requireValue(state.decks.disruption.draw.length > 0, 'state.decks.disruption', 'no unrevealed disruption remains');
+  const cardId = state.decks.disruption.draw.shift();
+  state.disruptions.revealedByYear[year] = cardId;
+  return cardId;
+}
+
+function resolveDisruptionReveals(state, content, events) {
+  const nextYear = state.year + 1;
+  if (nextYear <= content.config.gameLength.maxYears) {
+    const publicCard = drawFutureDisruption(state, nextYear);
+    state.disruptions.active = publicCard;
+    events.push({ type: 'disruptionActivated', cardId: publicCard, year: nextYear });
+    events.push({ type: 'disruptionRevealed', visibility: 'public', cardId: publicCard, year: nextYear });
+  }
+
+  const futureYear = state.year + 2;
+  if (futureYear <= content.config.gameLength.maxYears) {
+    const privateCard = drawFutureDisruption(state, futureYear);
+    const playerIds = activePlayers(state)
+      .filter((player) => player.departments.administration >= 3)
+      .map((player) => player.id);
+    state.disruptions.privateByPlayer ??= {};
+    for (const playerId of playerIds) {
+      state.disruptions.privateByPlayer[playerId] ??= {};
+      state.disruptions.privateByPlayer[playerId][futureYear] = privateCard;
+    }
+    if (playerIds.length) events.push({ type: 'disruptionRevealed', visibility: 'private', cardId: privateCard, year: futureYear, playerIds });
+  }
+}
+
+function awardSafetyNet(state, content, events) {
+  const safetyNet = content.config.insolvencyAndElimination.safetyNet;
+  const eligible = activePlayers(state)
+    .filter((player) => !player.usedSafetyNet)
+    .sort((a, b) => a.treasury - b.treasury || priorityDistance(state, a) - priorityDistance(state, b));
+  const recipient = eligible[0];
+  if (!recipient || recipient.treasury >= safetyNet.treasuryThreshold) return;
+  recipient.treasury = roundMoney(recipient.treasury + safetyNet.amount);
+  recipient.usedSafetyNet = true;
+  events.push({ type: 'safetyNetAwarded', playerId: recipient.id, amount: safetyNet.amount });
+}
+
+function resetYearEffects(state) {
+  for (const player of state.players) {
+    player.adminCancelsUsed = 0;
+    player.effects.retentionDeltaThisYear = 0;
+    player.effects.temporaryCapacityThisYear = 0;
+    player.effects.donationMultiplierThisYearEnd = 1;
+  }
+}
+
+function resolveYearEnd(state, content, events) {
+  resolveGraduationAndAttrition(state, content, events);
+  resolveDonations(state, content, events);
+  resolveDisruptionReveals(state, content, events);
+  awardSafetyNet(state, content, events);
+  const minimum = content.config.insolvencyAndElimination.minimumStudents;
+  resolveEliminations(state, activePlayers(state).filter((player) => player.students < minimum), content, events, 'postYearEnd');
+
+  if (!state.finished && state.year === content.config.gameLength.maxYears) {
+    const winner = chooseHealthWinner(activePlayers(state), state, content.config);
+    events.push({
+      type: 'healthScoresComputed',
+      scores: Object.fromEntries(activePlayers(state).map((player) => [player.id, healthScore(player, content.config)])),
+    });
+    finishGame(state, winner, 'year6HealthScore', events);
+  }
+  resetYearEffects(state);
+}
+
+function persistSnapshot(state, events) {
+  const payload = structuredClone(state);
+  delete payload.lastSnapshot;
+  delete payload.resolution;
+  payload.pendingDecision = null;
+  const bytes = canonicalStringify(payload);
+  state.lastSnapshot = { round: state.round, cursor: state.rng.cursor, digest: digest(payload), bytes };
+  events.push({ type: 'roundSnapshot', ...state.lastSnapshot });
+}
+
+function finishRound(state, content, events) {
+  const rules = content.config.insolvencyAndElimination;
+  const casualties = activePlayers(state).filter((player) => (
+    player.students < rules.minimumStudents
+    || (player.treasury < rules.austerityTreasuryThreshold
+      && DEPARTMENTS.every((department) => player.departments[department] === content.config.startingState.allDepartmentsLevel))
+  ));
+  resolveEliminations(state, casualties, content, events, 'round');
+  delete state.resolution;
+  state.pendingDecision = null;
+  publishStandings(state, content, events);
+  if (!state.finished && state.roundOfYear === content.config.gameLength.yearEndRound) resolveYearEnd(state, content, events);
+  state.phase = state.finished ? 'complete' : 'ready';
+  persistSnapshot(state, events);
+  return { state, events, rng: state.rng, pendingDecision: null };
 }

@@ -3,6 +3,7 @@ import { createRng, shuffle } from './rng.js';
 import { resolveRound, resumeDecision } from './rules.js';
 
 export { roundMoney } from './rules.js';
+export { healthScore } from './rules.js';
 
 export const STATE_SCHEMA_VERSION = 1;
 export const ENGINE_VERSION = '0.1.0';
@@ -138,7 +139,7 @@ export function createGame({ seed, players, programsEnabled = true }, content) {
     winnerId: null,
     endReason: null,
     standings: null,
-    snapshots: [],
+    lastSnapshot: null,
   };
 
   return { state, events, rng: state.rng, pendingDecision: null };

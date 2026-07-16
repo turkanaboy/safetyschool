@@ -92,6 +92,13 @@ function validateConfig(config) {
   expect(Number.isInteger(config.players?.min) && Number.isInteger(config.players?.max), 'config.players', 'min and max must be integers');
   expect(config.players.min >= 2 && config.players.max >= config.players.min, 'config.players', 'invalid player bounds');
   expect(config.departments && DEPARTMENTS.every((department) => department in config.departments), 'config.departments', 'all six departments are required');
+  expect(Number.isInteger(config.allocation?.maxActionsPerRound) && config.allocation.maxActionsPerRound > 0, 'config.allocation.maxActionsPerRound', 'must be a positive integer');
+  expect(Number.isFinite(config.resourceBounds?.reputationMin) && Number.isFinite(config.resourceBounds?.reputationMax), 'config.resourceBounds', 'reputation bounds must be finite');
+  expect(config.resourceBounds.reputationMin < config.resourceBounds.reputationMax, 'config.resourceBounds', 'reputation bounds are reversed');
+  expect(Number.isFinite(config.insolvencyAndElimination?.minimumStudents), 'config.insolvencyAndElimination.minimumStudents', 'must be finite');
+  expect(Number.isFinite(config.insolvencyAndElimination?.safetyNet?.treasuryThreshold), 'config.insolvencyAndElimination.safetyNet.treasuryThreshold', 'must be finite');
+  expect(Object.values(config.victory?.tiebreakAtYear6?.weights ?? {}).length > 0
+    && Object.values(config.victory.tiebreakAtYear6.weights).every(Number.isFinite), 'config.victory.tiebreakAtYear6.weights', 'all score weights must be finite');
 
   for (const [level, odds] of Object.entries(config.departments.athletics.seasonOddsByLevel ?? {})) {
     validateProbabilityTable(odds, `config.departments.athletics.seasonOddsByLevel.${level}`);
@@ -110,6 +117,7 @@ function validateConfig(config) {
   }
   expect(criteria.archetypeWinnerShareMin <= criteria.archetypeWinnerShareMax, 'config.simulationAcceptanceCriteria', 'archetype winner-share bounds are reversed');
   expect(criteria.winningPortfolioProgramShareMin <= criteria.winningPortfolioProgramShareMax, 'config.simulationAcceptanceCriteria', 'program portfolio bounds are reversed');
+  expect(criteria.maxGameRounds === config.gameLength.roundsPerYear * config.gameLength.maxYears, 'config.simulationAcceptanceCriteria.maxGameRounds', 'must match the configured game length');
 }
 
 function validateCards(config, cards) {

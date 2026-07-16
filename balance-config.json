@@ -1,7 +1,7 @@
 {
   "_meta": {
     "game": "Safety School",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "note": "AUTHORITATIVE numeric source. The design doc's numbers are illustrative; the engine must read every constant from this file and hardcode nothing. All money values are in millions of dollars ($M) unless suffixed otherwise.",
     "units": {
       "money": "millions USD, stored as decimal, rounded to 0.01 at persistence",
@@ -14,6 +14,15 @@
   "players": {
     "min": 2,
     "max": 5
+  },
+
+  "resourceBounds": {
+    "reputationMin": 0,
+    "reputationMax": 100
+  },
+
+  "allocation": {
+    "maxActionsPerRound": 2
   },
 
   "gameLength": {
@@ -189,6 +198,8 @@
 
   "insolvencyAndElimination": {
     "austerityTrigger": "treasury < 0 at end-of-round austerity check",
+    "austerityTreasuryThreshold": 0,
+    "minimumStudents": 1000,
     "fireSaleRecoveryFraction": 0.4,
     "forcedFireSaleReputationPenalty": 3,
     "voluntaryFireSaleReputationPenalty": 0,
@@ -200,16 +211,34 @@
     "safetyNet": {
       "name": "State Emergency Appropriation",
       "amount": 5,
+      "treasuryThreshold": 10,
       "trigger": "lowest treasury among survivors AND treasury < 10, checked at year end",
       "usesPerPlayerPerGame": 1
     }
+  },
+
+  "standings": {
+    "treasuryBands": [
+      { "name": "Broke", "maxExclusive": 5 },
+      { "name": "Tight", "maxExclusive": 15 },
+      { "name": "Stable", "maxExclusive": 35 },
+      { "name": "Flush", "maxExclusive": null }
+    ]
   },
 
   "victory": {
     "primaryWin": "sole surviving university",
     "tiebreakAtYear6": {
       "name": "Institutional Health Score",
-      "formula": "treasury/10 + students/100 + reputation + sum(departmentLevels)*5 + alumni/500"
+      "formula": "treasury/10 + students/100 + reputation + sum(departmentLevels)*5 + alumni/500",
+      "weights": {
+        "treasury": 0.1,
+        "students": 0.01,
+        "reputation": 1,
+        "departmentLevel": 5,
+        "program": 5,
+        "alumni": 0.002
+      }
     },
     "simultaneousTotalElimination": "highest Institutional Health Score among players eliminated in the final round wins"
   },
