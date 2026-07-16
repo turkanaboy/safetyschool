@@ -871,3 +871,76 @@ dialog p { color: #617069; line-height: 1.5; }
   .primary-button, .secondary-button, .danger-button, .management__actions button, .action-grid button, .program-option button { transition: background-color 120ms ease, border-color 120ms ease; }
   .primary-button:active, .secondary-button:active, .danger-button:active, .management__actions button:active, .action-grid button:active, .program-option button:active { transform: none; }
 }
+
+/* U6 consequential event presentation */
+.ceremony-dialog { width: min(720px, calc(100% - 32px)); max-width: 720px; max-height: calc(100dvh - 32px); overflow: auto; border-top: 5px solid var(--gold); animation: ceremony-enter 220ms cubic-bezier(.22, 1, .36, 1); }
+.ceremony-dialog::backdrop { background: rgb(5 16 12 / 76%); backdrop-filter: blur(2px); }
+.ceremony { display: grid; gap: 12px; }
+.ceremony .eyebrow { margin: 0; }
+.ceremony blockquote { padding: 12px 16px; margin: 0; border-left: 3px solid var(--gold); color: #45554e; background: #f6f1e4; font: italic .86rem/1.55 Georgia, serif; }
+.ceremony-school { margin: -5px 0 0 !important; color: #66756e !important; font-size: .7rem; font-weight: 750; }
+.ceremony-guide { padding: 10px 12px; border: 1px solid #d5b66c; border-radius: 8px; background: #fff8e8; }
+.ceremony-guide strong { font: 700 .72rem Georgia, serif; }
+.ceremony-guide p { margin: 3px 0 0; font-size: .65rem; }
+.calculation-strip, .report-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+.calculation-strip span, .report-grid span, .emergency-status span { display: grid; gap: 3px; padding: 9px; border: 1px solid #d9d3c4; border-radius: 7px; background: #fffefa; }
+.calculation-strip small, .report-grid small, .emergency-status small { color: #748078; font-size: .52rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.calculation-strip strong, .report-grid strong, .emergency-status strong { font: 700 .86rem Georgia, serif; }
+.effect-list { display: grid; gap: 5px; padding: 0; margin: 0; list-style: none; }
+.effect-list li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 10px; border-bottom: 1px solid #e3ddd0; font-size: .68rem; }
+.effect-list li.is-skipped { color: #7a756d; text-decoration: line-through; }
+.report-grid { grid-template-columns: repeat(3, 1fr); }
+.disruption-brief { padding: 11px 13px; border-radius: 8px; color: #edf4f0; background: #26483c; }
+.disruption-brief small, .disruption-brief strong { display: block; }
+.disruption-brief small { color: #d8bd78; font-size: .54rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.disruption-brief strong { margin-top: 4px; font: 700 .86rem Georgia, serif; }
+.disruption-brief p { margin: 5px 0 0; color: #cfddd6; font-size: .64rem; }
+.disruption-brief--private { background: #393452; }
+.special-issue { display: inline-block; justify-self: start; padding: 5px 8px; margin: 0 !important; border: 2px solid #b13d31; color: #8f2c23 !important; font-size: .64rem; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; transform: rotate(-1deg); }
+.ceremony--final h3 { margin: 0; color: #17392e; font: 700 1.6rem Georgia, serif; }
+.book-records { display: grid; grid-template-columns: 1.15fr .9fr .85fr; gap: 12px; min-width: 0; }
+.book-records h3 { margin: 0 0 7px; }
+.record-list { display: grid; gap: 5px; padding: 0; margin: 0; list-style: none; }
+.record-list li { display: flex; justify-content: space-between; gap: 8px; min-width: 0; padding: 7px 8px; border: 1px solid #ded8ca; border-radius: 6px; background: #fffefa; }
+.record-list span { min-width: 0; }
+.record-list small, .record-list strong { display: block; overflow: hidden; text-overflow: ellipsis; }
+.record-list small { color: #748078; font-size: .48rem; }
+.record-list strong { margin-top: 2px; font-size: .58rem; white-space: nowrap; }
+.record-list b { align-self: center; color: #8d6d2e; font-size: .56rem; white-space: nowrap; }
+
+.emergency-layout { display: grid; grid-template-columns: minmax(220px, .7fr) minmax(0, 1.3fr); gap: 24px; }
+.emergency-heading { padding: 14px; border: 1px solid #b55f49; border-radius: 9px; background: #f4ded5; }
+.emergency-heading h2 { margin: 4px 0 7px; color: #742f27; font: 700 1.2rem Georgia, serif; }
+.emergency-heading > p:not(.eyebrow) { color: #6e4b43; font-size: .65rem; line-height: 1.5; }
+.emergency-status { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 12px; }
+.emergency-options { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; }
+.emergency-options button { display: flex; justify-content: space-between; gap: 14px; padding: 11px; border: 1px solid #d6c7b4; border-radius: 8px; color: var(--ink); background: white; cursor: pointer; text-align: left; transition: border-color 140ms ease, background-color 140ms ease, transform 100ms ease; }
+.emergency-options button:active { transform: scale(.985); }
+.emergency-options span:last-child { text-align: right; }
+.emergency-options strong, .emergency-options b, .emergency-options small { display: block; }
+.emergency-options strong { font: 700 .72rem Georgia, serif; }
+.emergency-options b { color: #8d362b; font-size: .64rem; }
+.emergency-options small { margin-top: 3px; color: #6a766f; font-size: .54rem; }
+body[data-game-state="emergency"] .campus-board { filter: saturate(.72) contrast(.98); }
+body[data-game-state="emergency"] .management__summary::before { content: "Emergency meeting"; color: #ffd2c4; font-size: .56rem; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; }
+
+@keyframes ceremony-enter {
+  from { opacity: 0; transform: translateY(12px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .emergency-options button:hover { border-color: #a74737; background: #fff9f5; }
+}
+
+@media (max-width: 1100px) {
+  .emergency-layout { gap: 14px; }
+  .ceremony-dialog { max-height: calc(100dvh - 20px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ceremony-dialog { animation: none; }
+  .ceremony-dialog::backdrop { backdrop-filter: none; }
+  .emergency-options button { transition: border-color 120ms ease, background-color 120ms ease; }
+  .emergency-options button:active { transform: none; }
+}

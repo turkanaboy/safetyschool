@@ -137,8 +137,11 @@ test('contextual guidance is persisted through the controller without changing e
   const game = createSoloController({ session, content, onTransition: () => { saves += 1; } });
   game.dismissTutorial('allocation');
   game.dismissTutorial('allocation');
+  game.dismissTutorial('card');
+  game.dismissTutorial('card');
 
   assert.equal(game.getView().tutorial.allocationDismissed, true);
+  assert.equal(game.getView().tutorial.cardDismissed, true);
   assert.equal(JSON.stringify(game.getSession().state), stateBefore);
-  assert.equal(saves, 1);
+  assert.equal(saves, 2);
 });

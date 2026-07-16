@@ -222,7 +222,7 @@ export function rivalProfile(view, rivalId) {
   };
 }
 
-function dumpScore(standing) {
+export function dumpScore(standing) {
   const departmentLevels = Object.values(standing.departments).reduce((total, level) => total + level, 0);
   return standing.students * 0.01 + standing.reputation + departmentLevels * 5
     + standing.programs.length * 5 + standing.alumni * 0.002;
@@ -264,10 +264,17 @@ export function dumpRankings(view) {
     }))];
 }
 
-function historyEntry(state, events, humanId) {
+function historyEntry(state, safeEvents, humanId) {
+  const own = state.players.find((player) => player.id === humanId);
   return {
     round: state.round,
-    events: normalizeHistoryEvents(events, humanId),
+    events: structuredClone(safeEvents),
+    own: {
+      treasury: own.treasury,
+      students: own.students,
+      reputation: own.reputation,
+      alumni: own.alumni,
+    },
   };
 }
 
@@ -293,12 +300,17 @@ export function createSoloSession({ seed, human, rivalIds, random = Math.random 
     state: created.state,
     human: structuredClone(human),
     rivals,
-    tutorial: { setupDismissed: false, allocationDismissed: false },
+    tutorial: {
+      setupDismissed: false,
+      allocationDismissed: false,
+      cardDismissed: false,
+      reportDismissed: false,
+    },
     history: [],
     stagedActions: [],
     mode: 'playing',
   };
-  session.history.push(historyEntry(session.state, created.events, human.id));
+  session.history.push(historyEntry(session.state, normalizeHistoryEvents(created.events, human.id), human.id));
   return session;
 }
 
@@ -332,7 +344,7 @@ export function createSoloController({ session: initialSession, content, onTrans
     const result = advanceGame(session.state, command, content);
     session.state = result.state;
     const safeEvents = normalizeHistoryEvents(result.events, humanId);
-    session.history.push({ round: session.state.round, events: safeEvents });
+    session.history.push(historyEntry(session.state, safeEvents, humanId));
     updateMode();
     notify();
     const emittedEvents = structuredClone(safeEvents);
@@ -496,7 +508,7 @@ export function createSoloController({ session: initialSession, content, onTrans
       return aiPending();
     },
     dismissTutorial(moment) {
-      if (!['setup', 'allocation'].includes(moment)) throw new TypeError(`tutorial moment: unknown ${moment}`);
+      if (!['setup', 'allocation', 'card', 'report'].includes(moment)) throw new TypeError(`tutorial moment: unknown ${moment}`);
       if (session.tutorial[`${moment}Dismissed`]) return getView();
       session.tutorial[`${moment}Dismissed`] = true;
       notify();

@@ -10,6 +10,7 @@ const ROUTES = new Map([
   ['/index.html', ['web/index.html', 'text/html; charset=utf-8']],
   ['/app.js', ['web/app.js', 'text/javascript; charset=utf-8']],
   ['/game.js', ['web/game.js', 'text/javascript; charset=utf-8']],
+  ['/presentation.js', ['web/presentation.js', 'text/javascript; charset=utf-8']],
   ['/storage.js', ['web/storage.js', 'text/javascript; charset=utf-8']],
   ['/styles.css', ['web/styles.css', 'text/css; charset=utf-8']],
   ['/agents/index.js', ['agents/index.js', 'text/javascript; charset=utf-8']],

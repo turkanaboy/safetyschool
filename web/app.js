@@ -17,6 +17,13 @@ import {
   loadSession,
   saveSession,
 } from '/storage.js';
+import {
+  annualReport,
+  boardBook,
+  emergencySaleOptions,
+  finalIssue,
+  presentationRecords,
+} from '/presentation.js';
 
 const DEPARTMENTS = ['academics', 'studentAffairs', 'athletics', 'admissions', 'marketing', 'administration'];
 const departmentNames = {
@@ -70,6 +77,9 @@ let actionRegistry = new Map();
 let uiMessage = '';
 let saveWarning = '';
 let pausedForStaleSave = false;
+let presentationQueue = [];
+let currentPresentation = null;
+let presentationReturnFocus = null;
 const numberFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 const storage = (() => {
   try {
@@ -186,16 +196,38 @@ function departmentEffect(department, level) {
 
 function eventDescription(event, view) {
   if (event.type === 'gameCreated') return 'The founding board approved the four-school field.';
-  if (event.type === 'roundStarted') return `${termLabel(view)} opened.`;
-  if (event.type === 'headlineRevealed') return `Headline ${event.cardId} set the terms of the round.`;
-  if (event.type === 'incomeResolved') return 'Tuition and upkeep settled before allocation.';
-  if (event.type === 'recruitingResolved') return 'The shared applicant pool resolved.';
+  if (event.type === 'roundStarted') return `Year ${event.year}, Term ${event.roundOfYear} opened.`;
+  if (event.type === 'headlineRevealed') {
+    const card = content.cards.headlines.find((candidate) => candidate.id === event.cardId);
+    return `${card?.name ?? event.cardId} set the terms of the round.`;
+  }
+  if (event.type === 'incomeResolved') {
+    const own = event.players?.[view.own.id];
+    return own ? `${formatMoney(own.tuition)} tuition less ${formatMoney(own.upkeep)} upkeep settled.` : 'Tuition and upkeep settled before allocation.';
+  }
+  if (event.type === 'recruitingResolved') {
+    const own = event.players?.[view.own.id];
+    return own ? `${formatNumber(own.totalConversions)} new students committed.` : 'The shared applicant pool resolved.';
+  }
   if (event.type === 'actionResolved') return `${schoolName(view, event.playerId)}: ${actionLabel(event, view)}.`;
-  if (event.type === 'cardResolved') return `${schoolName(view, event.playerId)} resolved ${event.cardId}.`;
+  if (event.type === 'cardResolved') {
+    const source = event.kind === 'fortune' ? content.cards.fortuneCards : content.cards.crisisCards;
+    const card = source.find((candidate) => candidate.id === event.cardId);
+    return `${schoolName(view, event.playerId)} resolved ${card?.name ?? event.cardId}.`;
+  }
   if (event.type === 'cardCancelled') return `${schoolName(view, event.playerId)} cancelled ${event.cardId}.`;
+  if (event.type === 'strainApplied') return `${schoolName(view, event.playerId)} exceeded capacity and lost ${event.reputationPenalty} reputation.`;
+  if (event.type === 'athleticsSeason') return `${schoolName(view, event.playerId)} had a ${event.outcome} athletics season.`;
   if (event.type === 'forcedSale') return `${schoolName(view, event.playerId)} sold a ${departmentNames[event.department]} level.`;
   if (event.type === 'playersEliminated') return `${event.playerIds.map((id) => schoolName(view, id)).join(', ')} closed.`;
   if (event.type === 'standingsPublished') return 'The DUMP annual standings were published.';
+  if (event.type === 'graduationResolved' && event.playerId === view.own.id) return `${formatNumber(event.graduates)} students graduated.`;
+  if (event.type === 'donationsResolved' && event.playerId === view.own.id) return `Alumni and grants contributed ${formatMoney(event.total)}.`;
+  if (event.type === 'safetyNetAwarded') return `${schoolName(view, event.playerId)} received an emergency safety net.`;
+  if (event.type === 'disruptionRevealed') {
+    const card = content.cards.annualDisruptions.find((candidate) => candidate.id === event.cardId);
+    return `${event.visibility === 'private' ? 'Administration previewed' : 'The field learned'} ${card?.name ?? event.cardId}.`;
+  }
   if (event.type === 'gameFinished') return `${schoolName(view, event.winnerId)} won the game.`;
   return null;
 }
@@ -357,8 +389,9 @@ function resumeGame(envelope) {
   revision = envelope.revision;
   attachController(envelope.session);
   hideStartup();
-  controller.resume();
+  const result = controller.resume();
   renderGame();
+  enqueuePresentation(result.presentationEvents);
 }
 
 function openNewGameConfirmation() {
@@ -368,6 +401,7 @@ function openNewGameConfirmation() {
     <button class="secondary-button" type="button" data-close-dialog>Keep current game</button>
     <button class="danger-button" type="button" data-confirm-new-game>Discard and start new</button>`;
   dialog.dataset.mandatory = 'false';
+  dialog.dataset.purpose = 'confirmation';
   dialog.showModal();
   dialogActions.querySelector('[data-close-dialog]').focus();
 }
@@ -375,13 +409,141 @@ function openNewGameConfirmation() {
 function pauseForStaleSave() {
   if (pausedForStaleSave) return;
   pausedForStaleSave = true;
+  if (dialog.open) {
+    presentationQueue = [];
+    currentPresentation = null;
+    dialog.close();
+  }
   gameShell.inert = true;
   dialogTitle.textContent = 'A newer game is open';
   dialogContent.innerHTML = '<p>Another tab saved a newer revision. This tab has paused so it cannot overwrite that progress.</p>';
   dialogActions.innerHTML = '<button class="primary-button" type="button" data-reload-game>Reload newer game</button>';
   dialog.dataset.mandatory = 'true';
+  dialog.dataset.purpose = 'stale-save';
   dialog.showModal();
   dialogActions.querySelector('button').focus();
+}
+
+function signedNumber(value) {
+  return `${value > 0 ? '+' : ''}${Number(value.toFixed(2))}`;
+}
+
+function effectResult(effect) {
+  if (effect.skipped) return `${effect.program ? titleCase(effect.program) : 'Required Program'} not held`;
+  if (effect.result === null) return effect.scalable ? `Scaled by x${Number(effect.multiplier.toFixed(2))}` : 'Rule modifier applied';
+  if (effect.type === 'money') return formatMoney(effect.result, true);
+  if (effect.type.includes('Conversions') || effect.type.includes('Capacity') || effect.type === 'extraActionsNextRound') {
+    return `${effect.result > 0 ? '+' : ''}${formatNumber(effect.result)}`;
+  }
+  if (effect.type.includes('retention') || effect.type.includes('YieldFloor') || effect.type === 'upkeepRefundFraction') {
+    return `${signedNumber(effect.result * 100)} points`;
+  }
+  if (effect.type.includes('Multiplier') || effect.type.includes('Penalty')) return `x${Number(effect.result.toFixed(2))}`;
+  return signedNumber(effect.result);
+}
+
+function presentationCardMarkup(record, view) {
+  const isPlayer = record.kind === 'playerCard';
+  const school = isPlayer ? view.own.name : schoolName(view, record.playerId);
+  const guide = isPlayer && !view.tutorial.cardDismissed
+    ? '<aside class="ceremony-guide"><strong>How cards scale</strong><p>The targeted building sets the factor. Crisis severity may then fall through Administration. The displayed result is explanatory only; the engine has already resolved it once.</p></aside>'
+    : '';
+  const effects = record.effects?.map((effect) => `<li class="${effect.skipped ? 'is-skipped' : ''}"><span>${escapeHtml(effect.label)}</span><strong>${escapeHtml(effectResult(effect))}</strong></li>`).join('') ?? '';
+  return `<div class="ceremony ceremony--${escapeHtml(record.cardKind)}">
+    <p class="eyebrow">${isPlayer ? 'Your campus' : 'Rival bulletin'} &middot; ${escapeHtml(titleCase(record.cardKind))} &middot; Severity ${record.severity}</p>
+    <p class="ceremony-school">${escapeHtml(school)}</p>
+    ${record.flavor ? `<blockquote>${escapeHtml(record.flavor)}</blockquote>` : ''}
+    ${guide}
+    ${isPlayer ? `<div class="calculation-strip"><span><small>${escapeHtml(departmentNames[record.target])} level</small><strong>${record.targetLevel}</strong></span><span><small>Building factor</small><strong>&times;${Number(record.targetFactor.toFixed(2))}</strong></span><span><small>Severity factor</small><strong>&times;${Number(record.severityFactor.toFixed(2))}</strong></span><span><small>Final factor</small><strong>&times;${Number(record.factor.toFixed(2))}</strong></span></div><ul class="effect-list">${effects}</ul>` : '<p>A consequential rival card has changed the competitive field. Its public outcome is recorded in the Board Book.</p>'}
+  </div>`;
+}
+
+function annualReportMarkup(view) {
+  const report = annualReport(view, content, view.year);
+  const guide = view.tutorial.reportDismissed
+    ? ''
+    : '<aside class="ceremony-guide"><strong>Your first annual close</strong><p>This report reconciles the year that just ended and reveals only the disruption information your Administration has earned.</p></aside>';
+  return `<div class="ceremony ceremony--report">
+    <p class="eyebrow">Mandatory report to the Board</p>
+    ${guide}
+    <div class="report-grid">
+      <span><small>Tuition collected</small><strong>${formatMoney(report.tuition)}</strong></span>
+      <span><small>Upkeep paid</small><strong>${formatMoney(report.upkeep)}</strong></span>
+      <span><small>Students recruited</small><strong>${formatNumber(report.recruiting)}</strong></span>
+      <span><small>Graduates</small><strong>${formatNumber(report.graduates)}</strong></span>
+      <span><small>Donations & grants</small><strong>${formatMoney(report.donations)}</strong></span>
+      <span><small>Closing treasury</small><strong>${formatMoney(report.endingTreasury)}</strong></span>
+      <span><small>DUMP standing</small><strong>${report.dumpRank ? `#${report.dumpRank} ${report.dumpMovement > 0 ? `&uarr;${report.dumpMovement}` : report.dumpMovement < 0 ? `&darr;${Math.abs(report.dumpMovement)}` : '&mdash;'}` : 'Unranked'}</strong></span>
+    </div>
+    ${report.nextDisruption ? `<section class="disruption-brief"><small>Public outlook &middot; Year ${report.year + 1}</small><strong>${escapeHtml(report.nextDisruption.title)}</strong><p>${escapeHtml(report.nextDisruption.prepHint)}</p></section>` : ''}
+    ${report.privateLookahead ? `<section class="disruption-brief disruption-brief--private"><small>Administration foresight &middot; confidential</small><strong>${escapeHtml(report.privateLookahead.title)}</strong><p>${escapeHtml(report.privateLookahead.prepHint)}</p></section>` : ''}
+  </div>`;
+}
+
+function finalIssueMarkup(view) {
+  const issue = finalIssue(view, content);
+  const factors = issue.publicFactors;
+  return `<div class="ceremony ceremony--final">
+    <p class="special-issue">DUMP Rankings Special Issue</p>
+    <p class="eyebrow">Definitive Ultimate Marketing Ploy</p>
+    <h3>${escapeHtml(issue.winnerName)} wins</h3>
+    <p>${escapeHtml(issue.explanation)}</p>
+    ${factors ? `<div class="report-grid"><span><small>Students</small><strong>${formatNumber(factors.students)}</strong></span><span><small>Reputation</small><strong>${formatNumber(factors.reputation)}</strong></span><span><small>Department levels</small><strong>${factors.departmentLevels}</strong></span><span><small>Programs</small><strong>${factors.programs}</strong></span><span><small>Alumni</small><strong>${formatNumber(factors.alumni)}</strong></span><span><small>Treasury</small><strong>${escapeHtml(factors.treasuryBand)}</strong></span></div>` : ''}
+    ${issue.turningPoints.length ? `<section><h4>Turning points</h4><ol class="history-list">${issue.turningPoints.map((point) => `<li>${escapeHtml(point)}</li>`).join('')}</ol></section>` : ''}
+  </div>`;
+}
+
+function showNextPresentation() {
+  if (dialog.open || presentationQueue.length === 0 || !controller) return;
+  const view = controller.getView();
+  currentPresentation = presentationQueue.shift();
+  presentationReturnFocus ??= document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  dialog.dataset.mandatory = 'false';
+  dialog.dataset.purpose = 'presentation';
+  dialog.classList.add('ceremony-dialog');
+
+  if (currentPresentation.kind === 'headline') {
+    dialogTitle.textContent = currentPresentation.title;
+    dialogContent.innerHTML = `<div class="ceremony ceremony--headline"><p class="eyebrow">Shared Headline</p><blockquote>${escapeHtml(currentPresentation.flavor)}</blockquote><p>The policy environment has settled into the live Briefing. Review its actual tuition and upkeep effects before allocating.</p></div>`;
+  } else if (currentPresentation.kind === 'playerCard' || currentPresentation.kind === 'rivalCard') {
+    dialogTitle.textContent = currentPresentation.title;
+    dialogContent.innerHTML = presentationCardMarkup(currentPresentation, view);
+  } else if (currentPresentation.kind === 'rivalAusterity') {
+    dialogTitle.textContent = `${schoolName(view, currentPresentation.playerId)} enters austerity`;
+    dialogContent.innerHTML = `<div class="ceremony ceremony--crisis"><p class="eyebrow">Emergency bulletin</p><p>A rival board has begun selling assets. The exact treasury remains private; the public building change will appear on its campus record.</p></div>`;
+  } else if (currentPresentation.kind === 'closure') {
+    dialogTitle.textContent = currentPresentation.playerIds.length === 1 ? 'A campus closes' : 'Campuses close';
+    dialogContent.innerHTML = `<div class="ceremony ceremony--crisis"><p class="eyebrow">Field update</p><p>${escapeHtml(currentPresentation.playerIds.map((id) => schoolName(view, id)).join(', '))} ${currentPresentation.playerIds.length === 1 ? 'has' : 'have'} left the competition.</p></div>`;
+  } else if (currentPresentation.kind === 'annualReport') {
+    dialogTitle.textContent = `Year ${view.year} Annual Report`;
+    dialogContent.innerHTML = annualReportMarkup(view);
+  } else {
+    dialogTitle.textContent = 'The final issue';
+    dialogContent.innerHTML = finalIssueMarkup(view);
+  }
+
+  const final = currentPresentation.kind === 'finalIssue';
+  dialogActions.innerHTML = `${presentationQueue.length ? '<button class="text-button" type="button" data-skip-presentations>Send remaining to Board Book</button>' : ''}<button class="primary-button" type="button" data-continue-presentation>${final ? 'Return to final campus' : 'Continue'}</button>`;
+  dialog.showModal();
+  dialogActions.querySelector('[data-continue-presentation]').focus();
+}
+
+function enqueuePresentation(events) {
+  if (!events.length || !controller) return;
+  const view = controller.getView();
+  const records = presentationRecords(events, { humanId: view.own.id, content });
+  presentationQueue.push(...records.queue);
+  showNextPresentation();
+}
+
+function completePresentation(skipRemaining = false) {
+  if (!currentPresentation) return;
+  const view = controller.getView();
+  if (currentPresentation.kind === 'playerCard' && !view.tutorial.cardDismissed) controller.dismissTutorial('card');
+  if (currentPresentation.kind === 'annualReport' && !view.tutorial.reportDismissed) controller.dismissTutorial('report');
+  if (skipRemaining) presentationQueue = [];
+  currentPresentation = null;
+  dialog.close();
 }
 
 function setTrayExpanded(expanded, instant = false) {
@@ -448,7 +610,7 @@ function renderBriefing(view) {
     ? `${formatNumber(view.own.students - capacity)} students above current Academics capacity.`
     : view.own.treasury < 10 ? 'Treasury margin is narrowing.' : 'No urgent operating warning.';
   let decision = '';
-  if (view.pendingDecision && view.legal?.kind === 'decision') {
+  if (view.pendingDecision?.type === 'adminCrisis' && view.legal?.kind === 'decision') {
     decision = `<section class="decision-panel"><p class="eyebrow">Decision required</p><h3>${view.pendingDecision.type === 'forcedSale' ? 'Emergency sale' : 'Administration review'}</h3>
       <div class="action-grid">${view.legal.commands.map((command) => {
         const key = registerAction(command);
@@ -474,6 +636,17 @@ function renderBriefing(view) {
       <article class="${warning.startsWith('No urgent') ? '' : 'is-warning'}"><small>Pressure</small><strong>${warning.startsWith('No urgent') ? 'Stable' : 'Watch'}</strong><span>${escapeHtml(warning)}</span></article>
       <article><small>Active effects</small><strong>${activeEffects.length}</strong><span>${activeEffects.length ? 'Carrying into play' : 'No temporary modifiers'}</span></article>
     </div>${decision}</div>`;
+}
+
+function renderEmergency(view) {
+  const options = emergencySaleOptions(view, content);
+  return `<div class="emergency-layout">
+    <section class="emergency-heading"><p class="eyebrow">Required decision</p><h2>Emergency Board Meeting</h2><p>The campus is below the solvency threshold. Sell one eligible building level at a time until the engine clears the emergency.</p><div class="emergency-status"><span><small>Current treasury</small><strong>${formatMoney(view.own.treasury)}</strong></span><span><small>Reputation</small><strong>${formatNumber(view.own.reputation)}</strong></span></div></section>
+    <section><h3>Choose the next fire sale</h3><div class="emergency-options">${options.map((option) => {
+      const key = registerAction(option.command);
+      return `<button type="button" data-answer-decision="${key}"><span><strong>${escapeHtml(departmentNames[option.department])}</strong><small>Level ${view.own.departments[option.department]} &rarr; ${view.own.departments[option.department] - 1}</small></span><span><b>${formatMoney(option.recovery)} recovered</b><small>${formatMoney(option.upkeepSaved)} upkeep saved &middot; &minus;${option.reputationLost} reputation</small></span></button>`;
+    }).join('')}</div><p class="projection-note">Every figure is authoritative and comes from the currently legal engine decision. If another sale is required, this meeting stays open.</p></section>
+  </div>`;
 }
 
 function renderAllocation(view) {
@@ -540,18 +713,28 @@ function renderRivals(view) {
 }
 
 function renderBoardBook(view) {
-  const history = activityItems(view, 16);
+  const book = boardBook(view, content);
+  const cards = book.cards.slice(-8).reverse().map((card) => `<li><span><small>${card.playerId === view.own.id ? 'Your campus' : schoolName(view, card.playerId)} &middot; ${titleCase(card.cardKind)}</small><strong>${escapeHtml(card.title)}</strong></span><b>${card.target ? escapeHtml(departmentNames[card.target]) : ''}</b></li>`).join('');
+  const reports = book.reports.slice().reverse().map((report) => `<li><span><small>Year ${report.year}</small><strong>${formatNumber(report.recruiting)} recruited &middot; ${formatNumber(report.graduates)} graduates</strong></span><b>${formatMoney(report.endingTreasury)}</b></li>`).join('');
+  const trends = book.trends.slice().reverse().map((trend, index, reversed) => {
+    const prior = reversed[index + 1];
+    const movement = trend.ownRank && prior?.ownRank ? prior.ownRank - trend.ownRank : 0;
+    return `<li><span><small>Round ${trend.round} public standing</small><strong>DUMP ${trend.ownRank ? `#${trend.ownRank}` : 'unranked'} &middot; ${formatNumber(trend.students ?? 0)} students</strong></span><b>${movement > 0 ? `&uarr;${movement}` : movement < 0 ? `&darr;${Math.abs(movement)}` : '&mdash;'}</b></li>`;
+  }).join('');
   return `<div class="board-book-layout">
-    <section><p class="eyebrow">Permanent reference</p><h2>Board Book</h2><div class="help-card"><strong>How a term works</strong><p>Begin the shared term, review income and warnings, then commit up to two different action types. Rivals submit simultaneously. Cards and recruiting resolve only after confirmation.</p></div><div class="help-card"><strong>What DUMP means</strong><p>Definitive Ultimate Marketing Ploy rankings use published students, reputation, departments, Programs, and alumni. Treasury is excluded and DUMP never changes the rules.</p></div><button class="danger-link" type="button" data-request-new-game>Start a different game</button></section>
-    <section><h3>Recent Board record</h3><ol class="history-list">${(history.length ? history : ['No term history yet.']).map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ol></section>
+    <section><p class="eyebrow">Permanent reference</p><h2>Board Book</h2><div class="help-card"><strong>How a term works</strong><p>Begin the shared term, review income and warnings, then commit up to two different action types. Rivals submit simultaneously. Cards and recruiting resolve only after confirmation.</p></div><div class="help-card"><strong>How cards scale</strong><p>The targeted department sets the factor. Fortune uses (level + 1) &divide; 3; Crisis uses (6 &minus; level) &divide; 5, then applies any Administration severity reduction.</p></div><div class="help-card"><strong>What DUMP means</strong><p>Definitive Ultimate Marketing Ploy rankings use published students, reputation, departments, Programs, and alumni. Treasury is excluded and DUMP never changes the rules.</p></div><button class="danger-link" type="button" data-request-new-game>Start a different game</button></section>
+    <section class="book-records"><div><h3>Cards</h3><ol class="record-list">${cards || '<li>No cards recorded yet.</li>'}</ol></div><div><h3>Annual reports</h3><ol class="record-list">${reports || '<li>The first report arrives after Term 5.</li>'}</ol></div><div><h3>DUMP trend</h3><ol class="record-list">${trends || '<li>No published ranking yet.</li>'}</ol></div></section>
   </div>`;
 }
 
 function renderTray(view) {
+  const emergency = view.pendingDecision?.type === 'forcedSale';
   document.querySelectorAll('[data-management-section]').forEach((button) => {
     button.setAttribute('aria-pressed', String(button.dataset.managementSection === activeSection));
+    button.disabled = emergency;
   });
-  if (activeSection === 'allocate') trayContent.innerHTML = renderAllocation(view);
+  if (emergency) trayContent.innerHTML = renderEmergency(view);
+  else if (activeSection === 'allocate') trayContent.innerHTML = renderAllocation(view);
   else if (activeSection === 'programs') trayContent.innerHTML = renderPrograms(view);
   else if (activeSection === 'rivals') trayContent.innerHTML = renderRivals(view);
   else if (activeSection === 'boardBook') trayContent.innerHTML = renderBoardBook(view);
@@ -564,6 +747,8 @@ function renderGame({ animateBuildings = false } = {}) {
   const view = controller.getView();
   actionRegistry = new Map();
   const fixture = campusFixture(view);
+  const emergency = view.pendingDecision?.type === 'forcedSale';
+  document.body.dataset.gameState = emergency ? 'emergency' : view.finished ? 'complete' : view.mode;
   document.body.dataset.fixture = fixture;
   document.body.dataset.population = view.own.students < 5000 ? 'low' : view.own.students > 11000 ? 'high' : 'medium';
   document.body.dataset.color = view.identity.color;
@@ -586,6 +771,7 @@ function renderGame({ animateBuildings = false } = {}) {
     building.dataset.level = String(level);
     building.setAttribute('aria-label', `${departmentNames[department]}, Level ${level}`);
     building.setAttribute('aria-pressed', String(department === selectedDepartment));
+    building.disabled = emergency || view.finished;
     building.querySelector('.building__caption b').textContent = String(level);
     if (animateBuildings && level > prior && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
       building.classList.remove('is-building');
@@ -599,6 +785,10 @@ function renderGame({ animateBuildings = false } = {}) {
   status.textContent = saveWarning || (view.phase === 'allocation' ? `${termLabel(view)} · ${slots} action slot${slots === 1 ? '' : 's'} open` : `${termLabel(view)} · ${view.mode === 'playing' ? titleCase(view.phase) : titleCase(view.mode)}`);
   renderInspector(view);
   renderActivity(view);
+  if (emergency || ['eliminationChoice', 'spectating'].includes(view.mode)) {
+    activeSection = 'briefing';
+    setTrayExpanded(true, true);
+  }
   renderTray(view);
 }
 
@@ -625,11 +815,15 @@ function handleClick(event) {
       else if (loaded.status === 'invalid') showInvalidSave(loaded);
       else openSetup('No resumable game was found.');
     } else if (button.matches('[data-request-new-game]')) openNewGameConfirmation();
+    else if (button.matches('[data-continue-presentation]')) completePresentation();
+    else if (button.matches('[data-skip-presentations]')) completePresentation(true);
     else if (button.matches('[data-close-dialog]')) dialog.close();
     else if (button.matches('[data-confirm-new-game]')) {
       discardSession(storage);
       revision = 0;
       controller = null;
+      presentationQueue = [];
+      currentPresentation = null;
       dialog.close();
       openSetup();
     } else if (button.matches('[data-discard-invalid-save]')) {
@@ -672,10 +866,11 @@ function handleClick(event) {
       activeSection = 'allocate';
       renderGame();
     } else if (button.matches('[data-start-round]')) {
-      controller.startRound();
+      const result = controller.startRound();
       activeSection = 'briefing';
       activeSlot = 0;
       renderGame();
+      enqueuePresentation(result.presentationEvents);
     } else if (button.matches('[data-allocation-slot]')) {
       activeSlot = Number(button.dataset.allocationSlot);
       renderGame();
@@ -687,22 +882,27 @@ function handleClick(event) {
       activeSlot = Number(button.dataset.clearSlot);
       renderGame();
     } else if (button.matches('[data-confirm-allocation]')) {
-      controller.confirmAllocation();
+      const result = controller.confirmAllocation();
       activeSection = 'briefing';
       activeSlot = 0;
       renderGame({ animateBuildings: event.detail !== 0 });
+      enqueuePresentation(result.presentationEvents);
     } else if (button.matches('[data-answer-decision]')) {
-      controller.answerDecision(actionRegistry.get(button.dataset.answerDecision));
+      const result = controller.answerDecision(actionRegistry.get(button.dataset.answerDecision));
       renderGame();
+      enqueuePresentation(result.presentationEvents);
     } else if (button.matches('[data-dismiss-tutorial]')) {
       controller.dismissTutorial(button.dataset.dismissTutorial);
       renderGame();
     } else if (button.matches('[data-spectate]')) {
-      controller.spectateNext();
+      const result = controller.spectateNext();
       renderGame();
+      enqueuePresentation(result.presentationEvents);
     } else if (button.matches('[data-skip-remaining]')) {
       controller.skipRemaining();
       renderGame();
+      presentationQueue.push({ kind: 'finalIssue' });
+      showNextPresentation();
     }
   } catch (error) {
     uiMessage = error.message;
@@ -792,6 +992,20 @@ document.addEventListener('pointerdown', () => {
 }, true);
 dialog.addEventListener('cancel', (event) => {
   if (dialog.dataset.mandatory === 'true') event.preventDefault();
+  else if (dialog.dataset.purpose === 'presentation') {
+    event.preventDefault();
+    completePresentation();
+  }
+});
+dialog.addEventListener('close', () => {
+  dialog.classList.remove('ceremony-dialog');
+  if (dialog.dataset.purpose !== 'presentation') return;
+  if (presentationQueue.length) showNextPresentation();
+  else {
+    presentationReturnFocus?.isConnected && presentationReturnFocus.focus();
+    presentationReturnFocus = null;
+    dialog.dataset.purpose = '';
+  }
 });
 window.addEventListener('storage', (event) => {
   if (controller && content && isStaleStorageEvent(event, revision, content)) pauseForStaleSave();

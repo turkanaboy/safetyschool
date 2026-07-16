@@ -37,6 +37,7 @@ test('play server serves only the browser game graph with correct HTTP behavior'
       ['/styles.css', 'text/css'],
       ['/app.js', 'text/javascript'],
       ['/game.js', 'text/javascript'],
+      ['/presentation.js', 'text/javascript'],
       ['/storage.js', 'text/javascript'],
       ['/engine/content.js', 'text/javascript'],
       ['/agents/index.js', 'text/javascript'],
