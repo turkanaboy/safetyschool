@@ -5,7 +5,9 @@ import { Worker } from 'node:worker_threads';
 
 import { AGENT_TYPES, createAgent, POLICY_VERSION } from '../agents/index.js';
 import { canonicalStringify, canonicalize, digest, loadContent } from '../engine/content.js';
-import { advanceGame, createGame, legalActions, observeGame } from '../engine/index.js';
+import {
+  advanceGame, createGame, ENGINE_VERSION, legalActions, observeGame, STATE_SCHEMA_VERSION,
+} from '../engine/index.js';
 import { deriveSeed } from '../engine/rng.js';
 import { replayGame, REPLAY_SCHEMA_VERSION } from './replay.js';
 import { buildReport, formatMarkdown } from './report.js';
@@ -14,10 +16,11 @@ const SCRIPTED_TYPES = AGENT_TYPES.filter((type) => type !== 'random');
 const SCHEDULE_CYCLE_SIZE = 24;
 const TUNING_CHANGES = [
   'Reduced annual upkeep cost disease from 1.05 to 1.03 and raised the State Emergency Appropriation from 5 to 8.',
-  'Raised Student Affairs retention from 0.72 + 0.04/level (0.92 cap) to 0.75 + 0.045/level (0.94 cap).',
-  'Improved Athletics levels 3-5 odds and raised a great season from 8 money / 8 reputation / 400 next-round conversions to 12 / 10 / 500.',
-  'Reduced all program upkeep; reduced Engineering open cost from 15 to 12 and raised its pull from 80 to 100.',
-  'Reduced Business open cost from 8 to 6 and raised its pull from 150 to 175.',
+  'Reshaped Student Affairs retention from 0.72 + 0.04/level (0.92 cap) to 0.678 + 0.077/level (0.945 cap), increasing differentiation between department levels.',
+  'Reduced the Athletics cost multiplier from 1.5 to 1.1; improved levels 3-5 season odds; raised great seasons from 8 money / 8 reputation / 400 conversions to 14 / 12 / 1,800 and good seasons from 2 / 2 to 3 / 3.',
+  'Reduced Nursing upkeep from 2 to 1.75 and kept Arts & Sciences, Education, and Public Affairs at their original 1 upkeep.',
+  'Reduced Business open cost from 8 to 5 and upkeep from 1.5 to 1.25; raised pull from 150 to 210.',
+  'Reduced Engineering open cost from 15 to 10 and upkeep from 2.5 to 1.5; raised pull from 80 to 135 and annual donation bonus from 0.0005 to 0.0006 per alumnus.',
 ];
 
 function applyCommand(state, command, content, capture, commands, checkpoints, events) {
@@ -100,6 +103,8 @@ export function runGame({ seed, lineup, programsEnabled, content = loadContent()
     schemaVersion: REPLAY_SCHEMA_VERSION,
     identity: {
       ...content.identity,
+      stateSchemaVersion: STATE_SCHEMA_VERSION,
+      engineVersion: ENGINE_VERSION,
       policyVersion: POLICY_VERSION,
       policyDigest: digest(POLICY_VERSION),
     },
@@ -116,6 +121,9 @@ export function runGame({ seed, lineup, programsEnabled, content = loadContent()
 }
 
 export function buildSchedule({ minGames, baseSeed, programsEnabled }) {
+  if (!Number.isInteger(minGames) || minGames <= 0) throw new TypeError('minGames: must be a positive integer');
+  if (!Number.isInteger(baseSeed)) throw new TypeError('baseSeed: must be an integer');
+  if (typeof programsEnabled !== 'boolean') throw new TypeError('programsEnabled: must be boolean');
   const cycles = Math.ceil(minGames / SCHEDULE_CYCLE_SIZE);
   const schedule = [];
   for (let cycle = 0; cycle < cycles; cycle += 1) {
@@ -282,6 +290,8 @@ function allNumbersFinite(value) {
 }
 
 export function runFuzz({ games, baseSeed, content = loadContent() }) {
+  if (!Number.isInteger(games) || games <= 0) throw new TypeError('games: must be a positive integer');
+  if (!Number.isInteger(baseSeed)) throw new TypeError('baseSeed: must be an integer');
   const failures = [];
   for (let index = 0; index < games; index += 1) {
     const playerCount = 2 + (index % 4);
@@ -305,7 +315,10 @@ export function runFuzz({ games, baseSeed, content = loadContent() }) {
 
 function option(args, name, fallback) {
   const index = args.indexOf(name);
-  return index === -1 ? fallback : Number(args[index + 1]);
+  if (index === -1) return fallback;
+  const value = Number(args[index + 1]);
+  if (!Number.isInteger(value)) throw new TypeError(`${name}: must be an integer`);
+  return value;
 }
 
 async function main() {
@@ -341,7 +354,17 @@ async function main() {
     branches,
     metadata: {
       scheduleIdentity,
+      schedule: {
+        cycleSize: SCHEDULE_CYCLE_SIZE,
+        playerCounts: [2, 3, 4, 5],
+        cyclicAgentOffsetsPerPlayerCount: AGENT_TYPES.length,
+        identicalProgramBranchExposure: true,
+        replaySample: 'first complete cycle per branch',
+      },
       baseSeed,
+      stateSchemaVersion: STATE_SCHEMA_VERSION,
+      engineVersion: ENGINE_VERSION,
+      replaySchemaVersion: REPLAY_SCHEMA_VERSION,
       configVersion: content.identity.configVersion,
       configDigest: content.identity.configDigest,
       cardsVersion: content.identity.cardsVersion,

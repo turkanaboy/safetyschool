@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { AGENT_TYPES, createAgent } from '../agents/index.js';
 import { advanceGame, createGame, legalActions, observeGame } from '../engine/index.js';
-import { loadContent } from '../engine/content.js';
+import { DEPARTMENTS, loadContent } from '../engine/content.js';
 
 const content = loadContent();
 const scripted = AGENT_TYPES.filter((type) => type !== 'random');
@@ -11,13 +11,36 @@ const scripted = AGENT_TYPES.filter((type) => type !== 'random');
 test('scripted setup identities match the documented strategy cores', () => {
   const expected = {
     steadyHand: { admissions: 2, studentAffairs: 1 },
-    gambler: { athletics: 2, admissions: 1 },
-    prestigePlay: { academics: 2, admissions: 1 },
-    fortress: { studentAffairs: 2, admissions: 1 },
+    gambler: { athletics: 2, marketing: 1 },
+    prestigePlay: { academics: 2, administration: 1 },
+    fortress: { studentAffairs: 2, academics: 1 },
     oracle: { administration: 2, admissions: 1 },
   };
   for (const type of scripted) {
     assert.deepEqual(createAgent(type, { seed: 1 }).setup('p1', 'Test U').upgrades, expected[type]);
+  }
+});
+
+test('scripted policies prioritize both documented core departments', () => {
+  const cores = {
+    steadyHand: ['admissions', 'studentAffairs'],
+    gambler: ['athletics', 'marketing'],
+    prestigePlay: ['academics', 'administration'],
+    fortress: ['studentAffairs', 'academics'],
+    oracle: ['administration', 'academics'],
+  };
+  for (const [type, [first, second]] of Object.entries(cores)) {
+    const agent = createAgent(type, { seed: 2 });
+    const departments = Object.fromEntries(DEPARTMENTS.map((department) => [department, 1]));
+    const options = {
+      kind: 'allocation',
+      maxActions: 2,
+      actions: Object.keys(departments).map((department) => ({ action: { type: 'upgrade', department }, cost: 1 })),
+    };
+    const observation = { own: { treasury: 100, departments, programs: [] } };
+    assert.equal(agent.chooseAllocation(observation, options)[0].department, first, type);
+    observation.own.departments[first] = 4;
+    assert.equal(agent.chooseAllocation(observation, options)[0].department, second, type);
   }
 });
 

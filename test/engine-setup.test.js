@@ -77,13 +77,17 @@ test('money persistence uses half-even rounding on both sides of zero', () => {
   assert.equal(roundMoney(10.129), 10.13);
 });
 
-test('state refuses a mismatched schema, config, or card identity before transition work', () => {
+test('state refuses a mismatched schema, engine, config, or card identity before transition work', () => {
   const { state } = createGame({ seed: 2, players: setup(2) }, content);
   assert.doesNotThrow(() => assertCompatibleContent(state, content));
 
   const wrongSchema = structuredClone(state);
   wrongSchema.schemaVersion += 1;
   assert.throws(() => assertCompatibleContent(wrongSchema, content), /schemaVersion/);
+
+  const wrongEngine = structuredClone(state);
+  wrongEngine.engineVersion = 'wrong';
+  assert.throws(() => assertCompatibleContent(wrongEngine, content), /engineVersion/);
 
   const wrongConfig = structuredClone(state);
   wrongConfig.contentIdentity.configDigest = '0'.repeat(64);

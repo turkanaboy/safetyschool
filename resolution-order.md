@@ -81,7 +81,7 @@ Pull is computed in **classes**, because classes differ in yield and scaling exp
 
 ### Step 7 — Athletics Season (round 3 only) 🎲
 7.1. **[RNG #3 — one draw per player with Athletics activated, seat order]** Roll season vs. odds table for their level.
-7.2. Apply money/reputation immediately. Great Season: queue `bonusConversionsNextRound = 400`. Losing Season: queue one **extra Crisis draw targeted at Athletics** for Step 8 (severity rolled normally).
+7.2. Apply the configured money/reputation payout immediately. Great Season: queue the configured `bonusConversionsNextRound`. Losing Season: queue one **extra Crisis draw targeted at Athletics** for Step 8 (severity rolled normally).
 
 ### Step 8 — Chance phase 🎲
 Per player, in seat order, fully resolving each player before the next:
@@ -99,24 +99,27 @@ Fortune-before-Crisis is guaranteed per player: a windfall can absorb a same-rou
 10.3. On elimination: run inheritance — `floor(students × 0.5)` distributed to survivors proportional to reputation share (floor each share; remainder students are lost); the other 50% leave the region.
 10.4. If exactly one player survives: **game over, they win.** If zero survive (mutual destruction this round): winner = highest Institutional Health Score among this round's casualties.
 
-### Step 11 — Standings snapshot
+### Step 11 — Standings publication
 11.1. Publish: exact students, exact reputation, treasury **band** (Broke <$5M / Tight $5–15M / Stable $15–35M / Flush >$35M), department levels, alumni. Exact treasury is private (a Data Breach crisis can expose it).
-11.2. Persist full state + RNG cursor. This snapshot is the replay/audit unit.
+11.2. This is the public pre-year-end standings event. Full persistence is deferred until all applicable year-end work completes.
 
 ---
 
 ## 2. Year-End Sequence (round 5 only, after Step 11)
 
 Y1. **Graduation** (per player, seat order): `seniors = floor(students × 0.25)`; `grads = floor(seniors × (0.35 + 0.08 × academicsLevel))`. Students −grads; Alumni +grads.
-Y2. **Attrition:** `retention = clamp(0.72 + 0.04 × studentAffairsLevel + Σ heldProgram.annualRetentionBonus, …, 0.92) − accumulatedStrainPenalty − any card/disruption penalties`. Students = `floor(students × retention)`. Reset strain accumulator. (The 0.92 cap applies before penalties; Education can help reach it, never exceed it.)
+Y2. **Attrition:** `retention = clamp(studentAffairs.retentionBase + studentAffairs.retentionPerLevel × studentAffairsLevel + Σ heldProgram.annualRetentionBonus, …, studentAffairs.retentionCap) − accumulatedStrainPenalty − any card/disruption penalties`. Students = `floor(students × retention)`. Reset strain accumulator. (The configured cap applies before penalties; Education can help reach it, never exceed it.)
 Y3. **Donations & grants:** treasury += `alumni × (0.001 × academicsLevel + Σ heldProgram.donationPerAlumBonusPerYear)`; treasury += `Σ heldProgram.annualStateGrantPerAdminLevel × administrationLevel`.
 Y4. **Annual Disruption resolves:** the Disruption revealed one year ago takes effect for the **coming** year (its modifiers are attached to year+1's state).
 Y5. **Reveals:** if not yet drawn, draw year+2's Disruption from the top without consuming RNG. Publicly reveal year+1's Disruption to all; privately reveal year+2's to Admin L3+ players only.
 Y6. **Demographic cliff tick:** load `annualPool[year+1]`.
-Y7. **Safety net:** identify lowest-treasury survivor; if treasury < $10M and their appropriation is unused: +$5M, mark used.
+Y7. **Safety net:** identify the lowest-treasury survivor; if treasury is below `safetyNet.treasuryThreshold` and their appropriation is unused, add `safetyNet.amount` and mark it used.
 Y8. **Post-year-end elimination re-check:** attrition/graduation can drop a player below 1,000 students — rerun Step 10.2–10.4 logic.
 Y9. **Year 6 check:** if the year just ended is Year 6 and 2+ players survive: compute Institutional Health Score = `treasury/10 + students/100 + reputation + Σ(deptLevels)×5 + alumni/500`; highest wins; exact tie broken by (students, then alumni, then priority token proximity).
 Y10. Reset per-year flags (Admin L5 cancel, athletics season, safety-net eligibility recheck).
+
+### Step 12 — Complete round persistence
+After Y10 on round 5, or immediately after Step 11 on all other rounds, persist the full state and RNG cursor. This post-transaction snapshot is the replay/audit unit.
 
 ---
 

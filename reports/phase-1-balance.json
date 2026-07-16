@@ -14,37 +14,37 @@
             "expected": "0.15..0.3",
             "name": "winnerShare.steadyHand",
             "pass": true,
-            "value": 0.18085531574740207
+            "value": 0.2573940847322142
           },
           {
             "expected": "0.15..0.3",
             "name": "winnerShare.gambler",
             "pass": true,
-            "value": 0.24350519584332533
+            "value": 0.17755795363709032
           },
           {
             "expected": "0.15..0.3",
             "name": "winnerShare.prestigePlay",
             "pass": true,
-            "value": 0.19984012789768185
+            "value": 0.1520783373301359
           },
           {
             "expected": "0.15..0.3",
             "name": "winnerShare.fortress",
             "pass": true,
-            "value": 0.16027178257394084
+            "value": 0.155775379696243
           },
           {
             "expected": "0.15..0.3",
             "name": "winnerShare.oracle",
             "pass": true,
-            "value": 0.19274580335731414
+            "value": 0.19834132693844925
           },
           {
             "expected": "< 0.08",
             "name": "winnerShare.random",
             "pass": true,
-            "value": 0.022781774580335732
+            "value": 0.0588529176658673
           },
           {
             "expected": "22..28",
@@ -56,19 +56,19 @@
             "expected": "<= 0.15",
             "name": "endingBeforeRoundShare",
             "pass": true,
-            "value": 0.04096722621902478
+            "value": 0.04636290967226219
           },
           {
             "expected": "<= 0.4",
             "name": "year6TiebreakShare",
             "pass": true,
-            "value": 0.2511990407673861
+            "value": 0.3133493205435651
           },
           {
             "expected": "0.16999999999999998..0.33",
             "name": "austerityEscapeRate",
             "pass": true,
-            "value": 0.25480594249412697
+            "value": 0.2944708777686628
           },
           {
             "expected": ">= 1",
@@ -86,13 +86,13 @@
         "pass": true
       },
       "metrics": {
-        "austerityEscapeRate": 0.25480594249412697,
+        "austerityEscapeRate": 0.2944708777686628,
         "denominators": {
-          "austerityEntrants": 30223,
+          "austerityEntrants": 30475,
           "games": 10008,
           "replays": 24
         },
-        "endingBeforeRoundShare": 0.04096722621902478,
+        "endingBeforeRoundShare": 0.04636290967226219,
         "gameCount": 10008,
         "maxRound": 30,
         "medianEndRound": 28,
@@ -107,14 +107,14 @@
         "programsEnabled": false,
         "replayRate": 1,
         "winnerShares": {
-          "fortress": 0.16027178257394084,
-          "gambler": 0.24350519584332533,
-          "oracle": 0.19274580335731414,
-          "prestigePlay": 0.19984012789768185,
-          "random": 0.022781774580335732,
-          "steadyHand": 0.18085531574740207
+          "fortress": 0.155775379696243,
+          "gambler": 0.17755795363709032,
+          "oracle": 0.19834132693844925,
+          "prestigePlay": 0.1520783373301359,
+          "random": 0.0588529176658673,
+          "steadyHand": 0.2573940847322142
         },
-        "year6TiebreakShare": 0.2511990407673861
+        "year6TiebreakShare": 0.3133493205435651
       },
       "programsEnabled": false,
       "replayFailures": []
@@ -132,37 +132,37 @@
             "expected": "0.15..0.3",
             "name": "winnerShare.steadyHand",
             "pass": true,
-            "value": 0.16396882494004797
+            "value": 0.21612709832134291
           },
           {
             "expected": "0.15..0.3",
             "name": "winnerShare.gambler",
             "pass": true,
-            "value": 0.24300559552358114
+            "value": 0.1767585931254996
           },
           {
             "expected": "0.15..0.3",
             "name": "winnerShare.prestigePlay",
             "pass": true,
-            "value": 0.15857314148681056
+            "value": 0.18005595523581136
           },
           {
             "expected": "0.15..0.3",
             "name": "winnerShare.fortress",
             "pass": true,
-            "value": 0.23810951239008793
+            "value": 0.20013988808952837
           },
           {
             "expected": "0.15..0.3",
             "name": "winnerShare.oracle",
             "pass": true,
-            "value": 0.1740607513988809
+            "value": 0.16666666666666666
           },
           {
             "expected": "< 0.08",
             "name": "winnerShare.random",
             "pass": true,
-            "value": 0.022282174260591526
+            "value": 0.06025179856115108
           },
           {
             "expected": "22..28",
@@ -174,55 +174,55 @@
             "expected": "<= 0.15",
             "name": "endingBeforeRoundShare",
             "pass": true,
-            "value": 0.05905275779376499
+            "value": 0.06764588329336531
           },
           {
             "expected": "<= 0.4",
             "name": "year6TiebreakShare",
             "pass": true,
-            "value": 0.3025579536370903
+            "value": 0.3183453237410072
           },
           {
             "expected": "0.16999999999999998..0.33",
             "name": "austerityEscapeRate",
             "pass": true,
-            "value": 0.23613201273929935
+            "value": 0.2702060490851692
           },
           {
             "expected": "0.1..0.6",
             "name": "programWinnerShare.artsAndSciences",
             "pass": true,
-            "value": 0.25329736211031173
+            "value": 0.28966826538768986
           },
           {
             "expected": "0.1..0.6",
             "name": "programWinnerShare.business",
             "pass": true,
-            "value": 0.24880095923261392
+            "value": 0.19834132693844925
           },
           {
             "expected": "0.1..0.6",
             "name": "programWinnerShare.education",
             "pass": true,
-            "value": 0.17226219024780176
+            "value": 0.2590927258193445
           },
           {
             "expected": "0.1..0.6",
             "name": "programWinnerShare.engineering",
             "pass": true,
-            "value": 0.13019584332533973
+            "value": 0.19194644284572343
           },
           {
             "expected": "0.1..0.6",
             "name": "programWinnerShare.nursing",
             "pass": true,
-            "value": 0.24450439648281375
+            "value": 0.22092326139088728
           },
           {
             "expected": "0.1..0.6",
             "name": "programWinnerShare.publicAffairs",
             "pass": true,
-            "value": 0.17925659472422062
+            "value": 0.17755795363709032
           },
           {
             "expected": ">= 1",
@@ -240,35 +240,35 @@
         "pass": true
       },
       "metrics": {
-        "austerityEscapeRate": 0.23613201273929935,
+        "austerityEscapeRate": 0.2702060490851692,
         "denominators": {
-          "austerityEntrants": 28573,
+          "austerityEntrants": 29459,
           "games": 10008,
           "replays": 24
         },
-        "endingBeforeRoundShare": 0.05905275779376499,
+        "endingBeforeRoundShare": 0.06764588329336531,
         "gameCount": 10008,
         "maxRound": 30,
         "medianEndRound": 28,
         "programWinnerShares": {
-          "artsAndSciences": 0.25329736211031173,
-          "business": 0.24880095923261392,
-          "education": 0.17226219024780176,
-          "engineering": 0.13019584332533973,
-          "nursing": 0.24450439648281375,
-          "publicAffairs": 0.17925659472422062
+          "artsAndSciences": 0.28966826538768986,
+          "business": 0.19834132693844925,
+          "education": 0.2590927258193445,
+          "engineering": 0.19194644284572343,
+          "nursing": 0.22092326139088728,
+          "publicAffairs": 0.17755795363709032
         },
         "programsEnabled": true,
         "replayRate": 1,
         "winnerShares": {
-          "fortress": 0.23810951239008793,
-          "gambler": 0.24300559552358114,
-          "oracle": 0.1740607513988809,
-          "prestigePlay": 0.15857314148681056,
-          "random": 0.022282174260591526,
-          "steadyHand": 0.16396882494004797
+          "fortress": 0.20013988808952837,
+          "gambler": 0.1767585931254996,
+          "oracle": 0.16666666666666666,
+          "prestigePlay": 0.18005595523581136,
+          "random": 0.06025179856115108,
+          "steadyHand": 0.21612709832134291
         },
-        "year6TiebreakShare": 0.3025579536370903
+        "year6TiebreakShare": 0.3183453237410072
       },
       "programsEnabled": true,
       "replayFailures": []
@@ -278,19 +278,35 @@
     "baseSeed": 20260715,
     "cardsDigest": "d81fca95f5b8c7ac9bc32281cb922f4f4fd3111aae523fdf884830e68c8fda53",
     "cardsVersion": "1.3.0",
-    "configDigest": "d9b4653782cf8b4ff8c9b41374a4f1430b9dbbc6e30c13a9834141238e671d17",
-    "configVersion": "1.8.0",
-    "policyDigest": "16c3c6a5db7f730f196a241791ed97e2fe6091f72d9e592cdee807595840fce7",
-    "policyVersion": "1.5.0",
-    "scheduleIdentity": "b4a6489170bdbb732ef7880b8584011f3d1a6a8d7c40ff7d936f924b710457c0"
+    "configDigest": "45df9be6af3b477f98724c3659a7511de9c390e64db7b8d516f83474714fadc0",
+    "configVersion": "1.21.0",
+    "engineVersion": "0.2.0",
+    "policyDigest": "0175d86befbe75525f132794baff42abbf4e2a659aa20f2baec341740a9573e7",
+    "policyVersion": "2.0.0",
+    "replaySchemaVersion": 2,
+    "schedule": {
+      "cycleSize": 24,
+      "cyclicAgentOffsetsPerPlayerCount": 6,
+      "identicalProgramBranchExposure": true,
+      "playerCounts": [
+        2,
+        3,
+        4,
+        5
+      ],
+      "replaySample": "first complete cycle per branch"
+    },
+    "scheduleIdentity": "94767dd2d76ae019a19172ce2b32084a84f57a84adc9a7363a246774d85e1c86",
+    "stateSchemaVersion": 2
   },
   "pass": true,
   "schemaVersion": 1,
   "tuningChanges": [
     "Reduced annual upkeep cost disease from 1.05 to 1.03 and raised the State Emergency Appropriation from 5 to 8.",
-    "Raised Student Affairs retention from 0.72 + 0.04/level (0.92 cap) to 0.75 + 0.045/level (0.94 cap).",
-    "Improved Athletics levels 3-5 odds and raised a great season from 8 money / 8 reputation / 400 next-round conversions to 12 / 10 / 500.",
-    "Reduced all program upkeep; reduced Engineering open cost from 15 to 12 and raised its pull from 80 to 100.",
-    "Reduced Business open cost from 8 to 6 and raised its pull from 150 to 175."
+    "Reshaped Student Affairs retention from 0.72 + 0.04/level (0.92 cap) to 0.678 + 0.077/level (0.945 cap), increasing differentiation between department levels.",
+    "Reduced the Athletics cost multiplier from 1.5 to 1.1; improved levels 3-5 season odds; raised great seasons from 8 money / 8 reputation / 400 conversions to 14 / 12 / 1,800 and good seasons from 2 / 2 to 3 / 3.",
+    "Reduced Nursing upkeep from 2 to 1.75 and kept Arts & Sciences, Education, and Public Affairs at their original 1 upkeep.",
+    "Reduced Business open cost from 8 to 5 and upkeep from 1.5 to 1.25; raised pull from 150 to 210.",
+    "Reduced Engineering open cost from 15 to 10 and upkeep from 2.5 to 1.5; raised pull from 80 to 135 and annual donation bonus from 0.0005 to 0.0006 per alumnus."
   ]
 }

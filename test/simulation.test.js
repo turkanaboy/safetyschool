@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 import { AGENT_TYPES, POLICY_VERSION } from '../agents/index.js';
-import { canonicalStringify, loadContent } from '../engine/content.js';
+import { canonicalStringify, digest, loadContent } from '../engine/content.js';
+import { ENGINE_VERSION, STATE_SCHEMA_VERSION } from '../engine/index.js';
+import { REPLAY_SCHEMA_VERSION } from '../sim/replay.js';
 import { buildReport, formatMarkdown } from '../sim/report.js';
 import {
   aggregateResults,
@@ -30,6 +34,20 @@ test('schedule uses complete balanced cycles and identical A/B matchup exposure'
       subset.forEach((game) => { counts[game.lineup[seat]] += 1; });
       assert.equal(new Set(Object.values(counts)).size, 1);
     }
+  }
+});
+
+test('schedule, fuzz, and CLI reject zero or malformed game counts', () => {
+  assert.throws(() => buildSchedule({ minGames: 0, baseSeed: 1, programsEnabled: true }), /positive integer/);
+  assert.throws(() => runFuzz({ games: 0, baseSeed: 1, content }), /positive integer/);
+
+  for (const value of ['0', 'nope']) {
+    const result = spawnSync(process.execPath, ['sim/run.js', '--fuzz', '--games', value], {
+      cwd: fileURLToPath(new URL('..', import.meta.url)),
+      encoding: 'utf8',
+    });
+    assert.notEqual(result.status, 0, value);
+    assert.match(result.stderr, /must be (?:an|a positive) integer/, value);
   }
 });
 
@@ -111,14 +129,28 @@ test('aggregation, reports, and small Random fuzz disclose required evidence', (
     branches: [{ programsEnabled: true, metrics, evaluation: { pass: true, checks: [] } }],
     metadata: {
       scheduleIdentity: 'test-schedule',
+      schedule: {
+        cycleSize: 24,
+        playerCounts: [2, 3, 4, 5],
+        cyclicAgentOffsetsPerPlayerCount: AGENT_TYPES.length,
+        identicalProgramBranchExposure: true,
+        replaySample: 'first complete cycle per branch',
+      },
+      baseSeed: 123,
+      stateSchemaVersion: STATE_SCHEMA_VERSION,
+      engineVersion: ENGINE_VERSION,
+      replaySchemaVersion: REPLAY_SCHEMA_VERSION,
       configVersion: content.identity.configVersion,
+      configDigest: content.identity.configDigest,
       cardsVersion: content.identity.cardsVersion,
+      cardsDigest: content.identity.cardsDigest,
       policyVersion: POLICY_VERSION,
+      policyDigest: digest(POLICY_VERSION),
     },
     tuningChanges: [],
   });
   const markdown = formatMarkdown(report);
-  for (const expected of ['test-schedule', content.identity.configVersion, POLICY_VERSION, 'Denominators', 'Human playtesting']) {
+  for (const expected of ['test-schedule', 'complete 24-game cycles', ENGINE_VERSION, `state schema ${STATE_SCHEMA_VERSION}`, content.identity.configVersion, POLICY_VERSION, 'Denominators', 'Human playtesting']) {
     assert.match(markdown, new RegExp(expected));
   }
 

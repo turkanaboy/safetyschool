@@ -28,6 +28,23 @@ const CRITERIA = Object.freeze([
   'maxGameRounds', 'randomFuzzGamesMin',
 ]);
 
+const VALUE_EFFECTS = new Set([
+  'allPullMultiplier', 'allUpkeepMultiplier', 'bonusConversionsNextRound',
+  'bonusConversionsThisRound', 'campaignBlockedNextRound', 'campaignPullMultiplier',
+  'campaignPullMultiplierNext', 'campaignSpendCap', 'campaignYieldFloorBonusNext',
+  'campaignYieldLockNext', 'departmentUpkeepMultiplier', 'donationMultiplier',
+  'donationMultiplierThisYearEnd', 'extraActionsNextRound', 'money', 'moneyDeltaAll',
+  'nextCrisisSeverityReduction', 'poachCostDelta', 'poolAllotmentMultiplier',
+  'poolMultiplier', 'programMoneyDelta', 'programOpenCostMultiplier',
+  'programPullMultiplier', 'recruitingPenaltyNextRound', 'reputation',
+  'reputationDeltaAll', 'reputationPullExponentDelta', 'retentionDeltaThisYear',
+  'strainFirstOffensePenalty', 'temporaryCapacityThisYear', 'treasuryRevealedRounds',
+  'tuitionMultiplier', 'upkeepMultiplier', 'upkeepRefundFraction', 'yieldMultiplier',
+]);
+const PROGRAM_RIDER_MODIFIERS = new Set([
+  'donationBonusMultiplier', 'pullMultiplier', 'pullPerRoundBonus',
+]);
+
 function fail(path, message) {
   throw new TypeError(`${path}: ${message}`);
 }
@@ -47,9 +64,14 @@ function validateProbabilityTable(table, path) {
   expect(Math.abs(values.reduce((total, value) => total + value, 0) - 1) < 1e-9, path, 'probabilities must total 1');
 }
 
-function validateEffect(effect, path, allowed, programs) {
+function expectFiniteFields(object, fields, path) {
+  for (const field of fields) expect(Number.isFinite(object[field]), `${path}.${field}`, 'must be a finite number');
+}
+
+function validateEffect(effect, path, allowed, programs, { playerCard = false, nested = false } = {}) {
   expect(effect && typeof effect === 'object' && !Array.isArray(effect), path, 'must be an object');
   expect(allowed.has(effect.type), `${path}.type`, `unknown effect type ${JSON.stringify(effect.type)}`);
+  if (VALUE_EFFECTS.has(effect.type)) expectFiniteFields(effect, ['value'], path);
 
   if ('program' in effect || effect.type === 'programRider') {
     expect(programs.has(effect.program), `${path}.program`, `unknown program ${JSON.stringify(effect.program)}`);
@@ -60,6 +82,27 @@ function validateEffect(effect, path, allowed, programs) {
   if (effect.type === 'raceReward') {
     expect(effect.condition && typeof effect.condition === 'object', `${path}.condition`, 'must be an object');
     expect(effect.reward && typeof effect.reward === 'object', `${path}.reward`, 'must be an object');
+    expectFiniteFields(effect.condition, ['reputationAtLeast'], `${path}.condition`);
+    expectFiniteFields(effect.reward, ['bonusConversions'], `${path}.reward`);
+    expect(typeof effect.firstOnly === 'boolean', `${path}.firstOnly`, 'must be boolean');
+  }
+  if (effect.type === 'athleticsPayoutMultiplier') expectFiniteFields(effect, ['great', 'losing'], path);
+  if (effect.type === 'poachModifier') expectFiniteFields(effect, ['costMultiplier', 'fractionMultiplier'], path);
+  if (effect.type === 'programRider' && playerCard) {
+    expect(effect.bonus && typeof effect.bonus === 'object' && !Array.isArray(effect.bonus), `${path}.bonus`, 'must be an object');
+    expect(effect.bonus.type !== 'programRider', `${path}.bonus.type`, 'nested program riders are not allowed');
+    validateEffect(effect.bonus, `${path}.bonus`, allowed, programs, { playerCard: true, nested: true });
+  } else if (effect.type === 'programRider') {
+    expect(effect.modifier && typeof effect.modifier === 'object' && !Array.isArray(effect.modifier), `${path}.modifier`, 'must be an object');
+    const modifierEntries = Object.entries(effect.modifier);
+    expect(modifierEntries.length > 0, `${path}.modifier`, 'must not be empty');
+    for (const [name, value] of modifierEntries) {
+      expect(PROGRAM_RIDER_MODIFIERS.has(name), `${path}.modifier.${name}`, 'unknown modifier');
+      expect(Number.isFinite(value), `${path}.modifier.${name}`, 'must be a finite number');
+    }
+  }
+  if (playerCard && effect.type !== 'programRider' && !nested) {
+    expect(typeof effect.scalable === 'boolean', `${path}.scalable`, 'must be boolean');
   }
 }
 
@@ -83,7 +126,13 @@ function validateDeck(cards, key, expectedSize, allowedEffects, programs, ids, {
       expect([1, 2, 3].includes(card.severity), `${cardPath}.severity`, 'must be 1, 2, or 3');
     }
 
-    card.effects.forEach((effect, effectIndex) => validateEffect(effect, `${cardPath}.effects[${effectIndex}]`, allowedEffects, programs));
+    card.effects.forEach((effect, effectIndex) => validateEffect(
+      effect,
+      `${cardPath}.effects[${effectIndex}]`,
+      allowedEffects,
+      programs,
+      { playerCard: playerCards },
+    ));
   });
 }
 

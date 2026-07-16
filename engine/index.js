@@ -6,8 +6,8 @@ export { roundMoney } from './rules.js';
 export { healthScore } from './rules.js';
 export { legalActions, observeGame } from './rules.js';
 
-export const STATE_SCHEMA_VERSION = 1;
-export const ENGINE_VERSION = '0.1.0';
+export const STATE_SCHEMA_VERSION = 2;
+export const ENGINE_VERSION = '0.2.0';
 
 function assert(condition, path, message) {
   if (!condition) throw new TypeError(`${path}: ${message}`);
@@ -86,6 +86,7 @@ function shuffleDeck(ids, rng) {
 
 export function assertCompatibleContent(state, content) {
   assert(state.schemaVersion === STATE_SCHEMA_VERSION, 'state.schemaVersion', `expected ${STATE_SCHEMA_VERSION}`);
+  assert(state.engineVersion === ENGINE_VERSION, 'state.engineVersion', `expected ${ENGINE_VERSION}`);
   for (const key of ['configDigest', 'cardsDigest']) {
     assert(state.contentIdentity?.[key] === content.identity[key], `state.contentIdentity.${key}`, `does not match loaded content`);
   }
@@ -132,6 +133,7 @@ export function createGame({ seed, players, programsEnabled = true }, content) {
     decks,
     disruptions: {
       active: null,
+      publicThroughYear: 2,
       revealedByYear: { 2: firstDisruption },
       claimedRaceRewards: [],
     },

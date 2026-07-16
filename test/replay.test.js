@@ -46,4 +46,12 @@ test('replay reports the first tampered command and rejects identity mismatches 
   assert.equal(rejected.ok, false);
   assert.equal(rejected.divergence.commandIndex, null);
   assert.match(rejected.divergence.message, /configDigest/);
+
+  for (const key of ['stateSchemaVersion', 'engineVersion']) {
+    const wrongVersion = structuredClone(original.replayLog);
+    wrongVersion.identity[key] = 'wrong';
+    const versionRejected = replayGame(wrongVersion, content);
+    assert.equal(versionRejected.ok, false);
+    assert.match(versionRejected.divergence.message, new RegExp(key));
+  }
 });

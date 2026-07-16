@@ -626,7 +626,8 @@ function continueAusterity(state, content, events) {
       continue;
     }
     player.enteredAusterity = true;
-    const choices = DEPARTMENTS.filter((department) => player.departments[department] > 1);
+    const floor = content.config.startingState.allDepartmentsLevel;
+    const choices = DEPARTMENTS.filter((department) => player.departments[department] > floor);
     if (choices.length === 0) {
       state.resolution.playerIndex += 1;
       continue;
@@ -914,6 +915,7 @@ function resolveDisruptionReveals(state, content, events) {
   if (nextYear <= content.config.gameLength.maxYears) {
     const publicCard = drawFutureDisruption(state, nextYear);
     state.disruptions.active = publicCard;
+    state.disruptions.publicThroughYear = nextYear;
     events.push({ type: 'disruptionActivated', cardId: publicCard, year: nextYear });
     events.push({ type: 'disruptionRevealed', visibility: 'public', cardId: publicCard, year: nextYear });
   }
@@ -1003,7 +1005,7 @@ function finishRound(state, content, events) {
 export function observeGame(state, playerId, content) {
   const own = state.players.find((player) => player.id === playerId);
   requireValue(own, 'playerId', 'unknown player');
-  const publicThroughYear = Math.max(2, state.year + 1);
+  const publicThroughYear = state.disruptions.publicThroughYear;
   const publicDisruptions = Object.fromEntries(Object.entries(state.disruptions.revealedByYear)
     .filter(([year]) => Number(year) <= publicThroughYear));
   const opponents = state.players.filter((player) => player.id !== playerId).map((player) => ({

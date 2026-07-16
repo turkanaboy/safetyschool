@@ -26,17 +26,6 @@ export function shuffle(source, initialRng) {
   return { items, rng };
 }
 
-export function weightedIndex(weights, initialRng) {
-  const next = nextRng(initialRng);
-  const total = weights.reduce((sum, weight) => sum + weight, 0);
-  let needle = next.value * total;
-  for (let index = 0; index < weights.length; index += 1) {
-    needle -= weights[index];
-    if (needle < 0) return { index, rng: next.rng, value: next.value };
-  }
-  return { index: weights.length - 1, rng: next.rng, value: next.value };
-}
-
 export function deriveSeed(seed, label) {
   let value = seed >>> 0;
   for (const character of String(label)) {

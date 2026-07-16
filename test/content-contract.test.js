@@ -27,6 +27,16 @@ test('content validation reports the offending path', async (t) => {
   const cases = [
     ['duplicate card ID', ({ cards }) => { cards.crisisCards[0].id = cards.fortuneCards[0].id; }, /cards\.crisisCards\[0\]\.id/],
     ['unknown player effect', ({ cards }) => { cards.fortuneCards[0].effects[0].type = 'wishfulThinking'; }, /cards\.fortuneCards\[0\]\.effects\[0\]\.type/],
+    ['missing effect value', ({ cards }) => { delete cards.fortuneCards[1].effects[0].value; }, /cards\.fortuneCards\[1\]\.effects\[0\]\.value/],
+    ['invalid nested rider bonus', ({ cards }) => {
+      const cardIndex = cards.fortuneCards.findIndex((card) => card.effects.some((effect) => effect.type === 'programRider'));
+      const effectIndex = cards.fortuneCards[cardIndex].effects.findIndex((effect) => effect.type === 'programRider');
+      cards.fortuneCards[cardIndex].effects[effectIndex].bonus.value = 'many';
+    }, /cards\.fortuneCards\[\d+\]\.effects\[\d+\]\.bonus\.value/],
+    ['empty disruption rider modifier', ({ cards }) => {
+      const card = cards.annualDisruptions.find((candidate) => candidate.effects.some((effect) => effect.type === 'programRider'));
+      card.effects.find((effect) => effect.type === 'programRider').modifier = {};
+    }, /cards\.annualDisruptions\[\d+\]\.effects\[\d+\]\.modifier/],
     ['missing program reference', ({ cards }) => { cards.annualDisruptions[7].effects[0].program = 'law'; }, /cards\.annualDisruptions\[7\]\.effects\[0\]\.program/],
     ['invalid department', ({ cards }) => { cards.crisisCards[0].target = 'law'; }, /cards\.crisisCards\[0\]\.target/],
     ['deck count mismatch', ({ config }) => { config.chanceCards.deckSizes.fortune += 1; }, /cards\.fortuneCards/],

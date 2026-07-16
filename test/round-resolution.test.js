@@ -68,6 +68,23 @@ test('zero actions bank and sale proceeds cannot fund committed spend', () => {
   assert.equal(result.state.players[0].departments.admissions, 2);
 });
 
+test('austerity honors a configured department floor above level one', () => {
+  const config = structuredClone(rawConfig);
+  config._meta.version = 'test-floor-2';
+  config.startingState.allDepartmentsLevel = 2;
+  const floorContent = validateContent(config, rawCards);
+  const { state } = game(2, { content: floorContent });
+  state.players[0].treasury = -100;
+  state.players[0].departments = Object.fromEntries(
+    Object.keys(state.players[0].departments).map((department) => [department, 2]),
+  );
+
+  const result = round(state, floorContent, allocations([], []));
+  assert.equal(result.pendingDecision, null);
+  assert.equal(result.state.players[0].active, false);
+  assert.ok(Object.values(result.state.players[0].departments).every((level) => level === 2));
+});
+
 test('program slots use commit-time Academics while valid openings recruit immediately', () => {
   const { state } = game(2, { upgrades: { academics: 1, admissions: 2 } });
   state.players[0].programs = ['education'];

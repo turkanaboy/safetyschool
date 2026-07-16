@@ -1,7 +1,7 @@
 import { DEPARTMENTS } from '../engine/content.js';
 import { createRng, nextRng } from '../engine/rng.js';
 
-export const POLICY_VERSION = '1.5.0';
+export const POLICY_VERSION = '2.0.0';
 export const AGENT_TYPES = Object.freeze([
   'steadyHand', 'gambler', 'prestigePlay', 'fortress', 'oracle', 'random',
 ]);
@@ -21,18 +21,18 @@ const POLICIES = Object.freeze({
     programs: ['education', 'nursing', 'business'],
   },
   gambler: {
-    setup: { athletics: 2, admissions: 1 },
-    build: ['admissions', 'studentAffairs', 'administration', 'academics', 'athletics', 'marketing'],
+    setup: { athletics: 2, marketing: 1 },
+    build: ['athletics', 'marketing', 'admissions', 'studentAffairs', 'administration', 'academics'],
     programs: ['business', 'publicAffairs', 'nursing'],
   },
   prestigePlay: {
-    setup: { academics: 2, admissions: 1 },
-    build: ['admissions', 'academics', 'administration', 'studentAffairs', 'marketing', 'athletics'],
-    programs: ['artsAndSciences', 'engineering', 'education'],
+    setup: { academics: 2, administration: 1 },
+    build: ['academics', 'administration', 'admissions', 'studentAffairs', 'marketing', 'athletics'],
+    programs: ['engineering', 'artsAndSciences', 'education'],
   },
   fortress: {
-    setup: { studentAffairs: 2, admissions: 1 },
-    build: ['admissions', 'studentAffairs', 'academics', 'administration', 'marketing', 'athletics'],
+    setup: { studentAffairs: 2, academics: 1 },
+    build: ['studentAffairs', 'academics', 'admissions', 'administration', 'marketing', 'athletics'],
     programs: ['nursing', 'education', 'publicAffairs'],
   },
   oracle: {

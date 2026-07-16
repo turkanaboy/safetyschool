@@ -1,7 +1,7 @@
 {
   "_meta": {
     "game": "Safety School",
-    "version": "1.8.0",
+    "version": "1.21.0",
     "note": "AUTHORITATIVE numeric source. The design doc's numbers are illustrative; the engine must read every constant from this file and hardcode nothing. All money values are in millions of dollars ($M) unless suffixed otherwise.",
     "units": {
       "money": "millions USD, stored as decimal, rounded to 0.01 at persistence",
@@ -55,7 +55,7 @@
     "buildCostToReachLevel": { "2": 8, "3": 18, "4": 32, "5": 50 },
     "upkeepAtLevel": { "1": 1, "2": 2, "3": 4, "4": 7, "5": 11 },
     "costMultipliers": {
-      "athletics": 1.5,
+      "athletics": 1.1,
       "administration": 0.75,
       "default": 1.0
     }
@@ -85,9 +85,9 @@
       "_comment": "Retention penalty accumulates: each round spent over capacity subtracts 0.6% from that year's retention (5 strained rounds = -3%, matching design doc)."
     },
     "studentAffairs": {
-      "retentionBase": 0.75,
-      "retentionPerLevel": 0.045,
-      "retentionCap": 0.94
+      "retentionBase": 0.678,
+      "retentionPerLevel": 0.077,
+      "retentionCap": 0.945
     },
     "athletics": {
       "seasonOddsByLevel": {
@@ -97,8 +97,8 @@
         "4": { "great": 0.50, "good": 0.40, "losing": 0.10 },
         "5": { "great": 0.60, "good": 0.35, "losing": 0.05 }
       },
-      "greatSeason": { "money": 12, "reputation": 10, "bonusConversionsNextRound": 500 },
-      "goodSeason": { "money": 2, "reputation": 2 },
+      "greatSeason": { "money": 14, "reputation": 12, "bonusConversionsNextRound": 1800 },
+      "goodSeason": { "money": 3, "reputation": 3 },
       "losingSeason": { "money": -3, "reputation": -3, "drawExtraCrisisTargetedAtAthletics": true }
     },
     "administration": {
@@ -122,28 +122,28 @@
     },
     "catalog": {
       "nursing": {
-        "openCost": 12, "upkeepPerRound": 1.5, "pullPerRound": 120,
+        "openCost": 12, "upkeepPerRound": 1.75, "pullPerRound": 120,
         "yield": 1.0, "subjectToReputationMultiplier": false, "subjectToPoolScaling": false
       },
       "business": {
-        "openCost": 6, "upkeepPerRound": 1, "pullPerRound": 175,
+        "openCost": 5, "upkeepPerRound": 1.25, "pullPerRound": 210,
         "reputationMultiplierOverride": "(reputation / 50) ^ 2"
       },
       "artsAndSciences": {
-        "openCost": 7, "upkeepPerRound": 0.75, "pullPerRound": 100,
+        "openCost": 7, "upkeepPerRound": 1, "pullPerRound": 100,
         "academicsCapacityBonus": 1500,
         "crisisTargetWeightModifiers": { "academics": 2.0 }
       },
       "engineering": {
-        "openCost": 12, "upkeepPerRound": 2, "pullPerRound": 100,
-        "donationPerAlumBonusPerYear": 0.0005
+        "openCost": 10, "upkeepPerRound": 1.5, "pullPerRound": 135,
+        "donationPerAlumBonusPerYear": 0.0006
       },
       "education": {
-        "openCost": 5, "upkeepPerRound": 0.75, "pullPerRound": 60,
+        "openCost": 5, "upkeepPerRound": 1, "pullPerRound": 60,
         "annualRetentionBonus": 0.02
       },
       "publicAffairs": {
-        "openCost": 6, "upkeepPerRound": 0.75, "pullPerRound": 40,
+        "openCost": 6, "upkeepPerRound": 1, "pullPerRound": 40,
         "annualStateGrantPerAdminLevel": 0.5
       }
     },

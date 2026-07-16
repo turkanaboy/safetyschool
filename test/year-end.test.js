@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { loadContent } from '../engine/content.js';
-import { advanceGame, createGame, healthScore } from '../engine/index.js';
+import { advanceGame, createGame, healthScore, observeGame } from '../engine/index.js';
 
 const content = loadContent();
 const setup = (count) => Array.from({ length: count }, (_, seat) => ({
@@ -86,7 +86,10 @@ test('donations include Academics and Engineering while grants stay outside mult
   state.disruptions.active = 'D12';
   const result = play(state);
   const donation = result.events.find((event) => event.type === 'donationsResolved' && event.playerId === 'p1');
-  const expectedDonation = donation.alumni * (0.001 * 3 + 0.0005) * 1.5 * 2;
+  const expectedDonation = donation.alumni * (
+    content.config.economy.donationPerAlumPerYearBase * 3
+    + content.config.programs.catalog.engineering.donationPerAlumBonusPerYear
+  ) * 1.5 * 2;
   assert.equal(donation.donations, expectedDonation);
   assert.equal(donation.grants, 0.5 * 4);
   assert.equal(donation.total, expectedDonation + donation.grants);
@@ -103,6 +106,9 @@ test('disruption public and Admin-private reveals advance without repeats or RNG
   assert.notEqual(year3Card, year2Card);
   assert.ok(year1.events.some((event) => event.type === 'disruptionRevealed' && event.visibility === 'public' && event.year === 2));
   assert.ok(year1.events.some((event) => event.type === 'disruptionRevealed' && event.visibility === 'private' && event.year === 3 && event.playerIds.includes('p1')));
+  assert.equal(observeGame(year1.state, 'p1', content).privateDisruptions['3'], year3Card);
+  assert.equal(observeGame(year1.state, 'p1', content).publicDisruptions['3'], undefined);
+  assert.equal(observeGame(year1.state, 'p2', content).publicDisruptions['3'], undefined);
   const chanceDraws = 4;
   assert.equal(year1.state.lastSnapshot.cursor - cursor, chanceDraws);
 

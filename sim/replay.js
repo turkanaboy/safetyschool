@@ -1,8 +1,8 @@
 import { POLICY_VERSION } from '../agents/index.js';
 import { canonicalStringify, digest } from '../engine/content.js';
-import { advanceGame, createGame } from '../engine/index.js';
+import { advanceGame, createGame, ENGINE_VERSION, STATE_SCHEMA_VERSION } from '../engine/index.js';
 
-export const REPLAY_SCHEMA_VERSION = 1;
+export const REPLAY_SCHEMA_VERSION = 2;
 
 function divergence(commandIndex, artifact, message) {
   return { ok: false, divergence: { commandIndex, artifact, message } };
@@ -13,6 +13,8 @@ export function replayGame(log, content) {
   for (const key of ['configDigest', 'cardsDigest']) {
     if (log.identity?.[key] !== content.identity[key]) return divergence(null, 'identity', `${key} does not match loaded content`);
   }
+  if (log.identity?.stateSchemaVersion !== STATE_SCHEMA_VERSION) return divergence(null, 'identity', 'stateSchemaVersion does not match');
+  if (log.identity?.engineVersion !== ENGINE_VERSION) return divergence(null, 'identity', 'engineVersion does not match');
   if (log.identity.policyDigest !== digest(POLICY_VERSION)) return divergence(null, 'identity', 'policyDigest does not match loaded policies');
 
   let created;
