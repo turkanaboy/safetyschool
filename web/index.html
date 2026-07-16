@@ -16,7 +16,10 @@
         <span>Safety School</span>
       </a>
       <nav class="rankings" aria-label="DUMP rankings">
-        <span class="rankings__label"><abbr title="Definitive Ultimate Marketing Ploy">DUMP</abbr> Rankings</span>
+        <span class="rankings__label">
+          <strong><abbr title="Definitive Ultimate Marketing Ploy">DUMP</abbr> Rankings</strong>
+          <small>Definitive Ultimate Marketing Ploy</small>
+        </span>
         <ol>
           <li><span>1</span> Northbridge</li>
           <li><span>2</span> You</li>
@@ -29,25 +32,97 @@
 
     <main class="playing-area" aria-label="Campus board">
       <section class="board-stage" aria-labelledby="campus-heading">
+        <div class="board-horizon" aria-hidden="true"><span></span><span></span><span></span></div>
         <div class="rival-spaces" aria-label="Rival campuses">
-          <button type="button">Northbridge</button>
-          <button type="button">Saint Cadmus</button>
-          <button type="button">Westlake</button>
+          <button class="rival-campus" type="button" data-rival="northbridge" aria-pressed="false">
+            <span class="rival-campus__rank">1</span>
+            <span class="rival-campus__mini" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span><strong>Northbridge</strong><small>Prestige · 52</small></span>
+          </button>
+          <button class="rival-campus" type="button" data-rival="saint-cadmus" aria-pressed="false">
+            <span class="rival-campus__rank">3</span>
+            <span class="rival-campus__mini rival-campus__mini--old" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span><strong>Saint Cadmus</strong><small>Prestige · 41</small></span>
+          </button>
+          <button class="rival-campus" type="button" data-rival="westlake" aria-pressed="false">
+            <span class="rival-campus__rank">4</span>
+            <span class="rival-campus__mini rival-campus__mini--glass" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span><strong>Westlake</strong><small>Prestige · 37</small></span>
+          </button>
         </div>
-        <div class="campus-placeholder">
-          <div>
-            <p class="eyebrow">Your campus</p>
-            <h1 id="campus-heading">Founders Green</h1>
-            <p>The campus-board visual workshop loads here.</p>
+
+        <div class="campus-board">
+          <div class="campus-nameplate">
+            <span class="campus-nameplate__seal" aria-hidden="true">FG</span>
+            <span><small>Your campus · Rank 2</small><strong id="campus-heading">Founders Green</strong></span>
           </div>
+          <output class="campus-condition" id="campus-condition">Early momentum</output>
+
+          <div class="campus-map">
+            <div class="quad" aria-label="Founders Quad">
+              <span class="quad__path quad__path--horizontal"></span>
+              <span class="quad__path quad__path--vertical"></span>
+              <span class="quad__fountain" aria-hidden="true"></span>
+              <span class="quad__label">Founders Quad</span>
+            </div>
+
+            <button class="building building--academics" type="button" data-department="academics" data-level="3" aria-label="Academics, Level 3">
+              <span class="building__model" aria-hidden="true"><i class="building__flag"></i><i class="building__roof"></i><i class="building__body"></i><i class="building__wing building__wing--left"></i><i class="building__wing building__wing--right"></i></span>
+              <span class="building__caption"><strong>Academics</strong><span>Level <b>3</b></span></span>
+            </button>
+            <button class="building building--student-affairs" type="button" data-department="studentAffairs" data-level="1" aria-label="Student Affairs, Level 1">
+              <span class="building__model" aria-hidden="true"><i class="building__flag"></i><i class="building__roof"></i><i class="building__body"></i><i class="building__wing building__wing--left"></i><i class="building__wing building__wing--right"></i></span>
+              <span class="building__caption"><strong>Student Affairs</strong><span>Level <b>1</b></span></span>
+            </button>
+            <button class="building building--athletics" type="button" data-department="athletics" data-level="1" aria-label="Athletics, Level 1">
+              <span class="building__model" aria-hidden="true"><i class="building__flag"></i><i class="building__roof"></i><i class="building__body"></i><i class="building__wing building__wing--left"></i><i class="building__wing building__wing--right"></i></span>
+              <span class="building__caption"><strong>Athletics</strong><span>Level <b>1</b></span></span>
+            </button>
+            <button class="building building--admissions" type="button" data-department="admissions" data-level="1" aria-label="Admissions, Level 1">
+              <span class="building__model" aria-hidden="true"><i class="building__flag"></i><i class="building__roof"></i><i class="building__body"></i><i class="building__wing building__wing--left"></i><i class="building__wing building__wing--right"></i></span>
+              <span class="building__caption"><strong>Admissions</strong><span>Level <b>1</b></span></span>
+            </button>
+            <button class="building building--marketing" type="button" data-department="marketing" data-level="1" aria-label="Marketing, Level 1">
+              <span class="building__model" aria-hidden="true"><i class="building__flag"></i><i class="building__roof"></i><i class="building__body"></i><i class="building__wing building__wing--left"></i><i class="building__wing building__wing--right"></i></span>
+              <span class="building__caption"><strong>Marketing</strong><span>Level <b>1</b></span></span>
+            </button>
+            <button class="building building--administration" type="button" data-department="administration" data-level="1" aria-label="Administration, Level 1">
+              <span class="building__model" aria-hidden="true"><i class="building__flag"></i><i class="building__roof"></i><i class="building__body"></i><i class="building__wing building__wing--left"></i><i class="building__wing building__wing--right"></i></span>
+              <span class="building__caption"><strong>Administration</strong><span>Level <b>1</b></span></span>
+            </button>
+
+            <div class="campus-life" aria-hidden="true">
+              <i style="--x:35%;--y:50%;--delay:-1s"></i><i style="--x:43%;--y:57%;--delay:-4s"></i>
+              <i style="--x:53%;--y:48%;--delay:-8s"></i><i style="--x:60%;--y:60%;--delay:-2s"></i>
+              <i style="--x:48%;--y:69%;--delay:-6s"></i><i style="--x:67%;--y:46%;--delay:-10s"></i>
+              <i style="--x:30%;--y:63%;--delay:-7s"></i><i style="--x:57%;--y:71%;--delay:-3s"></i>
+              <i style="--x:72%;--y:58%;--delay:-5s"></i><i style="--x:39%;--y:73%;--delay:-9s"></i>
+            </div>
+            <div class="campus-trees" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="maintenance-cue" aria-hidden="true"><i></i><i></i><i></i><span>Deferred maintenance</span></div>
+          </div>
+          <div class="campus-board__edge"><span>Founded 1912</span><strong>FOUNDER GREEN UNIVERSITY</strong><span>Term 1</span></div>
         </div>
       </section>
 
       <aside class="activity" aria-labelledby="activity-heading">
         <div>
-          <p class="eyebrow">Term 1 · Fall</p>
-          <h2 id="activity-heading">Campus activity</h2>
+          <p class="eyebrow">Visual workshop</p>
+          <h2 id="activity-heading">Campus atmosphere</h2>
         </div>
+        <nav class="fixture-switcher" aria-label="Campus atmosphere workshop">
+          <button type="button" data-fixture="early" aria-pressed="true">Early</button>
+          <button type="button" data-fixture="prosperous" aria-pressed="false">Prosperous</button>
+          <button type="button" data-fixture="strained" aria-pressed="false">Strained</button>
+          <button type="button" data-fixture="austerity" aria-pressed="false">Austerity</button>
+        </nav>
+        <p class="atmosphere-note" id="atmosphere-note">The quad feels hopeful, but every building still looks like a compromise.</p>
+        <div class="selected-building" id="selected-building">
+          <small>Selected building</small>
+          <strong>Academics · Level 3</strong>
+          <span>Solid foundation. Upgrade cost preview comes later.</span>
+        </div>
+        <h3>Campus activity</h3>
         <ol id="activity-feed" aria-live="polite">
           <li>Preparing the quad…</li>
         </ol>
@@ -60,19 +135,27 @@
         <span aria-hidden="true">⌃</span>
       </button>
       <div class="management__summary" aria-label="Key resources">
-        <span><small>Treasury</small> $24m</span>
-        <span><small>Students</small> 8,400</span>
-        <span><small>Reputation</small> 44</span>
-        <span><small>Alumni</small> 16,250</span>
+        <span><small>Treasury</small> <b id="treasury-value">$24m</b></span>
+        <span><small>Students</small> <b id="students-value">8,400</b></span>
+        <span><small>Reputation</small> <b id="reputation-value">44</b></span>
+        <span><small>Alumni</small> <b id="alumni-value">16,250</b></span>
       </div>
       <div class="management__actions" role="group" aria-label="Management sections">
         <button type="button">Executive summary</button>
         <button type="button">Resource allocation</button>
         <button type="button">Board book</button>
       </div>
-      <div class="management__tray" id="management-tray" hidden>
-        <h2>Management desk</h2>
-        <p>Detailed management panels will live here while the campus stays visible.</p>
+      <div class="management__tray" id="management-tray" aria-hidden="true" inert>
+        <div class="tray-copy">
+          <p class="eyebrow">President's desk</p>
+          <h2>Executive summary</h2>
+          <p>The campus remains in view while reports, allocations, and board records slide up from this edge.</p>
+        </div>
+        <div class="tray-preview" aria-label="Provisional executive summary">
+          <article><small>Position</small><strong>2nd of 4</strong><span>DUMP ranking</span></article>
+          <article><small>Term outlook</small><strong>Guarded</strong><span>Two actions available</span></article>
+          <article><small>Pressure</small><strong>Admissions</strong><span>Rivals are gaining pull</span></article>
+        </div>
       </div>
     </section>
   </div>
