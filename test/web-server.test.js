@@ -39,6 +39,8 @@ test('play server serves only the browser game graph with correct HTTP behavior'
       ['/game.js', 'text/javascript'],
       ['/presentation.js', 'text/javascript'],
       ['/storage.js', 'text/javascript'],
+      ['/assets/kenney/academics.png', 'image/png'],
+      ['/assets/kenney/tree.png', 'image/png'],
       ['/engine/content.js', 'text/javascript'],
       ['/agents/index.js', 'text/javascript'],
       ['/balance-config.json', 'application/json'],
@@ -90,11 +92,13 @@ test('campus gameplay shell keeps the approved board and exposes the five manage
     }
     assert.match(shell.body, />Definitive Ultimate Marketing Ploy</);
     assert.equal(shell.body.match(/class="building\b/g)?.length, 6);
+    assert.equal(shell.body.match(/src="\/assets\/kenney\/[^\"]+\.png"/g)?.length, 6);
     for (const section of ['briefing', 'allocate', 'programs', 'rivals', 'boardBook']) {
       assert.match(shell.body, new RegExp(`data-management-section="${section}"`));
     }
     assert.match(shell.body, /id="tray-content"/);
     assert.match(shell.body, /id="setup-panel"/);
+    assert.match(shell.body, /id="game-announcer"[^>]+aria-live="polite"/);
     assert.match(shell.body, /Founders Clock/);
     assert.match(shell.body, /class="protest"/);
   });

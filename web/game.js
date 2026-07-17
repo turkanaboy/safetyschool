@@ -95,6 +95,39 @@ export function normalizeHistoryEvents(events, humanId) {
   return normalized;
 }
 
+export function turnGuidance(view, roundsPerYear = 5) {
+  const term = view.phase === 'ready'
+    ? `Year ${Math.floor(view.round / roundsPerYear) + 1} · Term ${(view.round % roundsPerYear) + 1}`
+    : `Year ${view.year} · Term ${view.roundOfYear}`;
+  if (view.finished) {
+    return { eyebrow: 'Game complete', title: 'Final issue ready', detail: 'Review why the winner prevailed in the Board Book.', tone: 'complete' };
+  }
+  if (view.mode === 'eliminationChoice') {
+    return { eyebrow: 'Your choice', title: 'Your campus has closed', detail: 'Watch the rivals term by term or skip to the final issue.', tone: 'decision' };
+  }
+  if (view.mode === 'spectating') {
+    return { eyebrow: 'Watching rivals', title: `Advance ${term}`, detail: 'The remaining campuses act when you continue.', tone: 'watching' };
+  }
+  if (view.pendingDecision?.type === 'forcedSale') {
+    return { eyebrow: 'Your decision', title: 'Choose a fire sale', detail: 'Play is paused until you sell an eligible building level.', tone: 'decision' };
+  }
+  if (view.pendingDecision?.type === 'adminCrisis') {
+    return { eyebrow: 'Your decision', title: 'Resolve the Crisis review', detail: 'Choose whether Administration cancels this card.', tone: 'decision' };
+  }
+  if (view.phase === 'allocation') {
+    const maxActions = view.legal?.maxActions ?? 0;
+    const used = view.stagedActions?.filter(Boolean).length ?? 0;
+    const open = Math.max(0, maxActions - used);
+    return {
+      eyebrow: 'Your move',
+      title: `Plan ${term}`,
+      detail: `${open} action slot${open === 1 ? '' : 's'} open · rivals submit when you confirm.`,
+      tone: 'active',
+    };
+  }
+  return { eyebrow: 'Your move', title: `Begin ${term}`, detail: 'Rivals are waiting for you to start the shared term.', tone: 'active' };
+}
+
 function departmentCostMultiplier(department, config) {
   return config.departmentCostCurve.costMultipliers[department]
     ?? config.departmentCostCurve.costMultipliers.default;

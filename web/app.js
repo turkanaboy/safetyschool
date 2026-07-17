@@ -10,6 +10,7 @@ import {
   programManagement,
   rivalProfile,
   selectRivals,
+  turnGuidance,
 } from '/game.js';
 import {
   discardSession,
@@ -64,6 +65,7 @@ const dialog = document.querySelector('#game-dialog');
 const dialogTitle = document.querySelector('#dialog-title');
 const dialogContent = document.querySelector('#dialog-content');
 const dialogActions = document.querySelector('#dialog-actions');
+const announcer = document.querySelector('#game-announcer');
 
 let content = null;
 let controller = null;
@@ -80,6 +82,7 @@ let pausedForStaleSave = false;
 let presentationQueue = [];
 let currentPresentation = null;
 let presentationReturnFocus = null;
+let presentationReturnSelector = null;
 const numberFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 const storage = (() => {
   try {
@@ -216,7 +219,10 @@ function eventDescription(event, view) {
     return `${schoolName(view, event.playerId)} resolved ${card?.name ?? event.cardId}.`;
   }
   if (event.type === 'cardCancelled') return `${schoolName(view, event.playerId)} cancelled ${event.cardId}.`;
-  if (event.type === 'strainApplied') return `${schoolName(view, event.playerId)} exceeded capacity and lost ${event.reputationPenalty} reputation.`;
+  if (event.type === 'strainApplied') {
+    const penalty = Number.isFinite(event.reputationPenalty) ? ` and lost ${event.reputationPenalty} reputation` : '';
+    return `${schoolName(view, event.playerId)} exceeded capacity${penalty}.`;
+  }
   if (event.type === 'athleticsSeason') return `${schoolName(view, event.playerId)} had a ${event.outcome} athletics season.`;
   if (event.type === 'forcedSale') return `${schoolName(view, event.playerId)} sold a ${departmentNames[event.department]} level.`;
   if (event.type === 'playersEliminated') return `${event.playerIds.map((id) => schoolName(view, id)).join(', ')} closed.`;
@@ -245,6 +251,24 @@ function activityItems(view, limit = 7) {
     }
   }
   return items.filter(Boolean).slice(-limit).reverse();
+}
+
+function announceTransition(events) {
+  if (!events.length || !controller) return;
+  const view = controller.getView();
+  const descriptions = [];
+  for (const event of events) {
+    if (event.type === 'actionsResolved') {
+      for (const action of event.actions.filter((candidate) => candidate.playerId === view.own.id)) {
+        descriptions.push(eventDescription({ type: 'actionResolved', ...action }, view));
+      }
+    } else {
+      const description = eventDescription(event, view);
+      if (description) descriptions.push(description);
+    }
+  }
+  if (view.pendingDecision?.type === 'forcedSale') descriptions.push('Emergency Board Meeting. A building sale is required.');
+  announcer.textContent = `${descriptions.filter(Boolean).slice(-2).join(' ')} Treasury ${formatMoney(view.own.treasury)}. Students ${formatNumber(view.own.students)}. Reputation ${formatNumber(view.own.reputation)}.`;
 }
 
 function syncSetupForm() {
@@ -391,7 +415,8 @@ function resumeGame(envelope) {
   hideStartup();
   const result = controller.resume();
   renderGame();
-  enqueuePresentation(result.presentationEvents);
+  announceTransition(result.events);
+  enqueuePresentation(result.presentationEvents, controller.getView().pendingDecision ? '[data-answer-decision]' : '[data-start-round]');
 }
 
 function openNewGameConfirmation() {
@@ -412,6 +437,7 @@ function pauseForStaleSave() {
   if (dialog.open) {
     presentationQueue = [];
     currentPresentation = null;
+    presentationReturnSelector = null;
     dialog.close();
   }
   gameShell.inert = true;
@@ -445,13 +471,20 @@ function effectResult(effect) {
 function presentationCardMarkup(record, view) {
   const isPlayer = record.kind === 'playerCard';
   const school = isPlayer ? view.own.name : schoolName(view, record.playerId);
+  const cardType = record.cardKind === 'fortune' ? 'Fortune — helps that campus' : 'Crisis — hurts that campus';
+  const target = record.target ? departmentNames[record.target] : 'Campus-wide';
   const guide = isPlayer && !view.tutorial.cardDismissed
     ? '<aside class="ceremony-guide"><strong>How cards scale</strong><p>The targeted building sets the factor. Crisis severity may then fall through Administration. The displayed result is explanatory only; the engine has already resolved it once.</p></aside>'
     : '';
   const effects = record.effects?.map((effect) => `<li class="${effect.skipped ? 'is-skipped' : ''}"><span>${escapeHtml(effect.label)}</span><strong>${escapeHtml(effectResult(effect))}</strong></li>`).join('') ?? '';
   return `<div class="ceremony ceremony--${escapeHtml(record.cardKind)}">
-    <p class="eyebrow">${isPlayer ? 'Your campus' : 'Rival bulletin'} &middot; ${escapeHtml(titleCase(record.cardKind))} &middot; Severity ${record.severity}</p>
-    <p class="ceremony-school">${escapeHtml(school)}</p>
+    <p class="eyebrow">Resolved card &middot; Severity ${record.severity}</p>
+    <div class="card-orientation">
+      <span><small>Applies to</small><strong>${escapeHtml(school)}${isPlayer ? ' (you)' : ''}</strong></span>
+      <span><small>Card type</small><strong>${escapeHtml(cardType)}</strong></span>
+      <span><small>Target</small><strong>${escapeHtml(target)}</strong></span>
+      <span><small>Your action</small><strong>${isPlayer && record.cardKind === 'crisis' ? 'Resolved unless Administration offered a choice' : 'None — already resolved'}</strong></span>
+    </div>
     ${record.flavor ? `<blockquote>${escapeHtml(record.flavor)}</blockquote>` : ''}
     ${guide}
     ${isPlayer ? `<div class="calculation-strip"><span><small>${escapeHtml(departmentNames[record.target])} level</small><strong>${record.targetLevel}</strong></span><span><small>Building factor</small><strong>&times;${Number(record.targetFactor.toFixed(2))}</strong></span><span><small>Severity factor</small><strong>&times;${Number(record.severityFactor.toFixed(2))}</strong></span><span><small>Final factor</small><strong>&times;${Number(record.factor.toFixed(2))}</strong></span></div><ul class="effect-list">${effects}</ul>` : '<p>A consequential rival card has changed the competitive field. Its public outcome is recorded in the Board Book.</p>'}
@@ -497,14 +530,16 @@ function showNextPresentation() {
   if (dialog.open || presentationQueue.length === 0 || !controller) return;
   const view = controller.getView();
   currentPresentation = presentationQueue.shift();
-  presentationReturnFocus ??= document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
+    presentationReturnFocus ??= document.activeElement;
+  }
   dialog.dataset.mandatory = 'false';
   dialog.dataset.purpose = 'presentation';
   dialog.classList.add('ceremony-dialog');
 
   if (currentPresentation.kind === 'headline') {
     dialogTitle.textContent = currentPresentation.title;
-    dialogContent.innerHTML = `<div class="ceremony ceremony--headline"><p class="eyebrow">Shared Headline</p><blockquote>${escapeHtml(currentPresentation.flavor)}</blockquote><p>The policy environment has settled into the live Briefing. Review its actual tuition and upkeep effects before allocating.</p></div>`;
+    dialogContent.innerHTML = `<div class="ceremony ceremony--headline"><p class="eyebrow">Shared Headline &middot; applies to every active campus</p><div class="card-orientation"><span><small>Who it affects</small><strong>All four campuses</strong></span><span><small>What it does</small><strong>Changes shared rules this term</strong></span><span><small>Your action</small><strong>Review, then allocate</strong></span></div><blockquote>${escapeHtml(currentPresentation.flavor)}</blockquote><p>The policy environment has settled into the live Briefing. Review its actual tuition and upkeep effects before allocating.</p></div>`;
   } else if (currentPresentation.kind === 'playerCard' || currentPresentation.kind === 'rivalCard') {
     dialogTitle.textContent = currentPresentation.title;
     dialogContent.innerHTML = presentationCardMarkup(currentPresentation, view);
@@ -528,10 +563,11 @@ function showNextPresentation() {
   dialogActions.querySelector('[data-continue-presentation]').focus();
 }
 
-function enqueuePresentation(events) {
+function enqueuePresentation(events, returnSelector = null) {
   if (!events.length || !controller) return;
   const view = controller.getView();
   const records = presentationRecords(events, { humanId: view.own.id, content });
+  if (records.queue.length && returnSelector) presentationReturnSelector = returnSelector;
   presentationQueue.push(...records.queue);
   showNextPresentation();
 }
@@ -629,7 +665,7 @@ function renderBriefing(view) {
     primary = '<button class="primary-button" type="button" data-open-allocation>Build the allocation plan</button>';
   }
   return `<div class="tray-layout">
-    <div class="tray-copy"><p class="eyebrow">President's desk</p><h2>Briefing</h2><p>${view.phase === 'ready' ? 'The campus is settled and ready for the next shared Headline.' : `Headline ${escapeHtml(view.headline ?? 'pending')} has settled. Review the position before committing the term.`}</p>${primary}</div>
+    <div class="tray-copy"><p class="eyebrow">President's desk &middot; your planning step</p><h2>Briefing</h2><p>${view.phase === 'ready' ? 'Start the shared term when you are ready. The three rivals are waiting and cannot act until you begin.' : `Headline ${escapeHtml(view.headline ?? 'pending')} has settled. Choose your actions; the three rivals submit only when you confirm your allocation.`}</p>${primary}</div>
     <div class="tray-preview briefing-grid">
       <article><small>Position</small><strong>${formatMoney(view.own.treasury)}</strong><span>${view.own.paidUpkeepThisRound ? `${formatMoney(view.own.paidUpkeepThisRound)} upkeep paid` : 'Preseason treasury'}</span></article>
       <article><small>Capacity</small><strong>${formatNumber(capacity)}</strong><span>${formatNumber(view.own.students)} students enrolled</span></article>
@@ -714,7 +750,11 @@ function renderRivals(view) {
 
 function renderBoardBook(view) {
   const book = boardBook(view, content);
-  const cards = book.cards.slice(-8).reverse().map((card) => `<li><span><small>${card.playerId === view.own.id ? 'Your campus' : schoolName(view, card.playerId)} &middot; ${titleCase(card.cardKind)}</small><strong>${escapeHtml(card.title)}</strong></span><b>${card.target ? escapeHtml(departmentNames[card.target]) : ''}</b></li>`).join('');
+  const cards = book.cards.map((card, index) => ({ card, index })).slice(-8).reverse().map(({ card, index }) => {
+    const own = card.playerId === view.own.id;
+    const meaning = card.cardKind === 'fortune' ? 'Advantage' : 'Setback';
+    return `<li><button type="button" data-history-card="${index}"><span><small><b class="record-owner ${own ? 'is-own' : ''}">${own ? 'YOU' : 'RIVAL'}</b> ${escapeHtml(own ? view.own.name : schoolName(view, card.playerId))}</small><strong>${escapeHtml(card.title)}</strong><em>${escapeHtml(titleCase(card.cardKind))} &middot; ${meaning} &middot; applies to this campus</em></span><b>${card.target ? escapeHtml(departmentNames[card.target]) : 'Campus-wide'}</b></button></li>`;
+  }).join('');
   const reports = book.reports.slice().reverse().map((report) => `<li><span><small>Year ${report.year}</small><strong>${formatNumber(report.recruiting)} recruited &middot; ${formatNumber(report.graduates)} graduates</strong></span><b>${formatMoney(report.endingTreasury)}</b></li>`).join('');
   const trends = book.trends.slice().reverse().map((trend, index, reversed) => {
     const prior = reversed[index + 1];
@@ -722,9 +762,24 @@ function renderBoardBook(view) {
     return `<li><span><small>Round ${trend.round} public standing</small><strong>DUMP ${trend.ownRank ? `#${trend.ownRank}` : 'unranked'} &middot; ${formatNumber(trend.students ?? 0)} students</strong></span><b>${movement > 0 ? `&uarr;${movement}` : movement < 0 ? `&darr;${Math.abs(movement)}` : '&mdash;'}</b></li>`;
   }).join('');
   return `<div class="board-book-layout">
-    <section><p class="eyebrow">Permanent reference</p><h2>Board Book</h2><div class="help-card"><strong>How a term works</strong><p>Begin the shared term, review income and warnings, then commit up to two different action types. Rivals submit simultaneously. Cards and recruiting resolve only after confirmation.</p></div><div class="help-card"><strong>How cards scale</strong><p>The targeted department sets the factor. Fortune uses (level + 1) &divide; 3; Crisis uses (6 &minus; level) &divide; 5, then applies any Administration severity reduction.</p></div><div class="help-card"><strong>What DUMP means</strong><p>Definitive Ultimate Marketing Ploy rankings use published students, reputation, departments, Programs, and alumni. Treasury is excluded and DUMP never changes the rules.</p></div><button class="danger-link" type="button" data-request-new-game>Start a different game</button></section>
-    <section class="book-records"><div><h3>Cards</h3><ol class="record-list">${cards || '<li>No cards recorded yet.</li>'}</ol></div><div><h3>Annual reports</h3><ol class="record-list">${reports || '<li>The first report arrives after Term 5.</li>'}</ol></div><div><h3>DUMP trend</h3><ol class="record-list">${trends || '<li>No published ranking yet.</li>'}</ol></div></section>
+    <section><p class="eyebrow">Permanent reference</p><h2>Board Book</h2><div class="help-card"><strong>How a term works</strong><p>Begin the shared term, review income and warnings, then commit up to two different action types. Rivals submit simultaneously only after you confirm. Cards and recruiting then resolve automatically.</p></div><div class="help-card"><strong>How cards work</strong><p>Fortune means an advantage; Crisis means a setback. Each card applies to the campus named on it. The targeted department sets the factor, and Administration may reduce Crisis severity.</p></div><div class="help-card"><strong>What DUMP means</strong><p>Definitive Ultimate Marketing Ploy rankings use published students, reputation, departments, Programs, and alumni. Treasury is excluded and DUMP never changes the rules.</p></div><button class="danger-link" type="button" data-request-new-game>Start a different game</button></section>
+    <section class="book-records"><div><h3>Cards</h3><p class="record-hint">Select a card for who it applied to and what it meant. Your cards include exact math; rival cards show public facts.</p><ol class="record-list record-list--interactive">${cards || '<li>No cards recorded yet.</li>'}</ol></div><div><h3>Annual reports</h3><ol class="record-list">${reports || '<li>The first report arrives after Term 5.</li>'}</ol></div><div><h3>DUMP trend</h3><ol class="record-list">${trends || '<li>No published ranking yet.</li>'}</ol></div></section>
   </div>`;
+}
+
+function openCardReference(index, trigger) {
+  const view = controller.getView();
+  const record = boardBook(view, content).cards[index];
+  if (!record) throw new Error('That card is no longer in the Board Book.');
+  presentationReturnFocus = trigger;
+  dialog.dataset.mandatory = 'false';
+  dialog.dataset.purpose = 'reference';
+  dialog.classList.add('ceremony-dialog');
+  dialogTitle.textContent = record.title;
+  dialogContent.innerHTML = presentationCardMarkup(record, view);
+  dialogActions.innerHTML = '<button class="primary-button" type="button" data-close-reference>Back to Board Book</button>';
+  dialog.showModal();
+  dialogActions.querySelector('button').focus();
 }
 
 function renderTray(view) {
@@ -781,8 +836,11 @@ function renderGame({ animateBuildings = false } = {}) {
     }
   });
 
-  const slots = view.legal?.kind === 'allocation' ? view.legal.maxActions - view.stagedActions.filter(Boolean).length : 0;
-  status.textContent = saveWarning || (view.phase === 'allocation' ? `${termLabel(view)} · ${slots} action slot${slots === 1 ? '' : 's'} open` : `${termLabel(view)} · ${view.mode === 'playing' ? titleCase(view.phase) : titleCase(view.mode)}`);
+  const guidance = turnGuidance(view, content.config.gameLength.roundsPerYear);
+  status.dataset.tone = guidance.tone;
+  status.innerHTML = saveWarning
+    ? `<small>Save warning</small><strong>${escapeHtml(saveWarning)}</strong>`
+    : `<small>${escapeHtml(guidance.eyebrow)}</small><strong>${escapeHtml(guidance.title)}</strong><span>${escapeHtml(guidance.detail)}</span>`;
   renderInspector(view);
   renderActivity(view);
   if (emergency || ['eliminationChoice', 'spectating'].includes(view.mode)) {
@@ -824,6 +882,7 @@ function handleClick(event) {
       controller = null;
       presentationQueue = [];
       currentPresentation = null;
+      presentationReturnSelector = null;
       dialog.close();
       openSetup();
     } else if (button.matches('[data-discard-invalid-save]')) {
@@ -851,6 +910,10 @@ function handleClick(event) {
       activeSection = button.dataset.managementSection;
       setTrayExpanded(true, true);
       renderGame();
+    } else if (button.matches('[data-history-card]')) {
+      openCardReference(Number(button.dataset.historyCard), button);
+    } else if (button.matches('[data-close-reference]')) {
+      dialog.close();
     } else if (button.matches('[data-rival]')) {
       selectedRival = button.dataset.rival;
       activeSection = 'rivals';
@@ -870,7 +933,8 @@ function handleClick(event) {
       activeSection = 'briefing';
       activeSlot = 0;
       renderGame();
-      enqueuePresentation(result.presentationEvents);
+      announceTransition(result.events);
+      enqueuePresentation(result.presentationEvents, '[data-management-section="allocate"]');
     } else if (button.matches('[data-allocation-slot]')) {
       activeSlot = Number(button.dataset.allocationSlot);
       renderGame();
@@ -886,21 +950,29 @@ function handleClick(event) {
       activeSection = 'briefing';
       activeSlot = 0;
       renderGame({ animateBuildings: event.detail !== 0 });
-      enqueuePresentation(result.presentationEvents);
+      announceTransition(result.events);
+      enqueuePresentation(result.presentationEvents, controller.getView().pendingDecision ? '[data-answer-decision]' : '[data-start-round]');
     } else if (button.matches('[data-answer-decision]')) {
       const result = controller.answerDecision(actionRegistry.get(button.dataset.answerDecision));
       renderGame();
-      enqueuePresentation(result.presentationEvents);
+      announceTransition(result.events);
+      enqueuePresentation(result.presentationEvents, controller.getView().pendingDecision ? '[data-answer-decision]' : '[data-start-round]');
+      if (event.detail === 0 && controller.getView().pendingDecision?.type === 'forcedSale' && !dialog.open) {
+        document.querySelector('[data-answer-decision]')?.focus();
+      }
     } else if (button.matches('[data-dismiss-tutorial]')) {
       controller.dismissTutorial(button.dataset.dismissTutorial);
       renderGame();
     } else if (button.matches('[data-spectate]')) {
       const result = controller.spectateNext();
       renderGame();
-      enqueuePresentation(result.presentationEvents);
+      announceTransition(result.events);
+      enqueuePresentation(result.presentationEvents, '[data-spectate], [data-skip-remaining]');
     } else if (button.matches('[data-skip-remaining]')) {
       controller.skipRemaining();
       renderGame();
+      announcer.textContent = `${schoolName(controller.getView(), controller.getView().winnerId)} won the game. Final issue ready.`;
+      presentationReturnSelector = '.tray-handle';
       presentationQueue.push({ kind: 'finalIssue' });
       showNextPresentation();
     }
@@ -999,11 +1071,20 @@ dialog.addEventListener('cancel', (event) => {
 });
 dialog.addEventListener('close', () => {
   dialog.classList.remove('ceremony-dialog');
+  if (dialog.dataset.purpose === 'reference') {
+    presentationReturnFocus?.focus();
+    presentationReturnFocus = null;
+    dialog.dataset.purpose = '';
+    return;
+  }
   if (dialog.dataset.purpose !== 'presentation') return;
   if (presentationQueue.length) showNextPresentation();
   else {
-    presentationReturnFocus?.isConnected && presentationReturnFocus.focus();
+    const selectorTarget = presentationReturnSelector ? document.querySelector(presentationReturnSelector) : null;
+    const focusTarget = presentationReturnFocus?.isConnected ? presentationReturnFocus : selectorTarget ?? trayButton;
+    focusTarget?.focus();
     presentationReturnFocus = null;
+    presentationReturnSelector = null;
     dialog.dataset.purpose = '';
   }
 });

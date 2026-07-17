@@ -4,11 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#172b24">
+  <link rel="icon" href="data:,">
   <title>Safety School</title>
   <link rel="stylesheet" href="/styles.css">
   <script type="module" src="/app.js"></script>
 </head>
 <body>
+  <output class="sr-only" id="game-announcer" aria-live="polite" aria-atomic="true"></output>
   <div class="game-shell">
     <header class="topbar">
       <a class="wordmark" href="/" aria-label="Safety School home">
@@ -68,27 +70,27 @@
             </div>
 
             <button class="building building--academics" type="button" data-department="academics" data-level="3" aria-label="Academics, Level 3">
-              <span class="building__model" aria-hidden="true"><i class="building__flag"></i><i class="building__roof"></i><i class="building__body"></i><i class="building__detail"></i><i class="building__wing building__wing--left"></i><i class="building__wing building__wing--right"></i></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="building__model" aria-hidden="true"><img src="/assets/kenney/academics.png" alt=""></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
               <span class="building__caption"><strong>Academics</strong><span>Level <b>3</b></span></span>
             </button>
             <button class="building building--student-affairs" type="button" data-department="studentAffairs" data-level="1" aria-label="Student Affairs, Level 1">
-              <span class="building__model" aria-hidden="true"><i class="building__flag"></i><i class="building__roof"></i><i class="building__body"></i><i class="building__detail"></i><i class="building__wing building__wing--left"></i><i class="building__wing building__wing--right"></i></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="building__model" aria-hidden="true"><img src="/assets/kenney/student-affairs.png" alt=""></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
               <span class="building__caption"><strong>Student Affairs</strong><span>Level <b>1</b></span></span>
             </button>
             <button class="building building--athletics" type="button" data-department="athletics" data-level="1" aria-label="Athletics, Level 1">
-              <span class="building__model" aria-hidden="true"><i class="building__flag"></i><i class="building__roof"></i><i class="building__body"></i><i class="building__detail"></i><i class="building__wing building__wing--left"></i><i class="building__wing building__wing--right"></i></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="building__model" aria-hidden="true"><img src="/assets/kenney/athletics.png" alt=""></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
               <span class="building__caption"><strong>Athletics</strong><span>Level <b>1</b></span></span>
             </button>
             <button class="building building--admissions" type="button" data-department="admissions" data-level="1" aria-label="Admissions, Level 1">
-              <span class="building__model" aria-hidden="true"><i class="building__flag"></i><i class="building__roof"></i><i class="building__body"></i><i class="building__detail"></i><i class="building__wing building__wing--left"></i><i class="building__wing building__wing--right"></i></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="building__model" aria-hidden="true"><img src="/assets/kenney/admissions.png" alt=""></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
               <span class="building__caption"><strong>Admissions</strong><span>Level <b>1</b></span></span>
             </button>
             <button class="building building--marketing" type="button" data-department="marketing" data-level="1" aria-label="Marketing, Level 1">
-              <span class="building__model" aria-hidden="true"><i class="building__flag"></i><i class="building__roof"></i><i class="building__body"></i><i class="building__detail"></i><i class="building__wing building__wing--left"></i><i class="building__wing building__wing--right"></i></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="building__model" aria-hidden="true"><img src="/assets/kenney/marketing.png" alt=""></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
               <span class="building__caption"><strong>Marketing</strong><span>Level <b>1</b></span></span>
             </button>
             <button class="building building--administration" type="button" data-department="administration" data-level="1" aria-label="Administration, Level 1">
-              <span class="building__model" aria-hidden="true"><i class="building__flag"></i><i class="building__roof"></i><i class="building__body"></i><i class="building__detail"></i><i class="building__wing building__wing--left"></i><i class="building__wing building__wing--right"></i></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="building__model" aria-hidden="true"><img src="/assets/kenney/administration.png" alt=""></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
               <span class="building__caption"><strong>Administration</strong><span>Level <b>1</b></span></span>
             </button>
 

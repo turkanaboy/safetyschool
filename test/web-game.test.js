@@ -117,6 +117,7 @@ test('observations and compact history do not expose raw rival state or snapshot
   const controller = createSoloController({ session, content });
   const viewText = JSON.stringify(controller.getView());
   assert.equal(viewText.includes('123.456789'), false);
+  assert.deepEqual(Object.keys(controller.getSession().history[0].own).sort(), ['alumni', 'reputation', 'students', 'treasury']);
 
   const safe = normalizeHistoryEvents([
     { type: 'roundSnapshot', bytes: 'private-state-bytes' },

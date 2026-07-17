@@ -10,6 +10,7 @@ import {
   dumpRankings,
   programManagement,
   rivalProfile,
+  turnGuidance,
 } from '../web/game.js';
 
 const content = loadContent();
@@ -31,6 +32,21 @@ function controller(seed = 211) {
     content,
   });
 }
+
+test('turn guidance makes ownership, next action, and rival timing explicit', () => {
+  const game = controller(210);
+  assert.deepEqual(turnGuidance(game.getView()), {
+    eyebrow: 'Your move',
+    title: 'Begin Year 1 · Term 1',
+    detail: 'Rivals are waiting for you to start the shared term.',
+    tone: 'active',
+  });
+
+  game.startRound();
+  assert.match(turnGuidance(game.getView()).detail, /2 action slots open .* rivals submit when you confirm/i);
+  game.stageAction(0, game.getView().legal.actions.find((option) => option.action.type !== 'bank').action);
+  assert.match(turnGuidance(game.getView()).detail, /1 action slot open/i);
+});
 
 test('building management derives costs, upkeep, legal choices, and unavailable reasons', () => {
   const game = controller();
