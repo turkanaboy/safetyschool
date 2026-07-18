@@ -7,6 +7,7 @@ import {
   createSoloController,
   createSoloSession,
   dumpRankings,
+  operatingBudget,
   programManagement,
   rivalProfile,
   selectRivals,
@@ -27,6 +28,18 @@ import {
 } from '/presentation.js';
 
 const DEPARTMENTS = ['academics', 'studentAffairs', 'athletics', 'admissions', 'marketing', 'administration'];
+const QUAD_RUNTIME_ROOT = '/assets/university-quad/Runtime';
+const QUAD_MANIFEST_PATH = `${QUAD_RUNTIME_ROOT}/runtime-manifest.json`;
+const CAMPUS_ROUTES = [
+  [[768, 310], [768, 420], [665, 450], [520, 405]],
+  [[1015, 405], [870, 450], [768, 420], [768, 310]],
+  [[520, 585], [665, 532], [615, 488], [665, 450], [520, 405]],
+  [[1015, 585], [870, 532], [768, 568], [768, 665]],
+  [[768, 665], [768, 568], [665, 532], [520, 585]],
+  [[665, 450], [615, 488], [665, 532], [768, 568], [870, 532], [920, 488], [870, 450], [768, 420], [665, 450]],
+  [[920, 488], [870, 532], [1015, 585]],
+];
+const padIdByDepartment = { studentAffairs: 'student-affairs' };
 const departmentNames = {
   academics: 'Academics',
   administration: 'Administration',
@@ -34,6 +47,13 @@ const departmentNames = {
   athletics: 'Athletics',
   marketing: 'Marketing',
   studentAffairs: 'Student Affairs',
+};
+const actionTypeNames = {
+  campaign: 'Campaign',
+  openProgram: 'Program',
+  poach: 'Recruiting',
+  sell: 'Sale',
+  upgrade: 'Upgrade',
 };
 const archetypeNames = {
   steadyHand: 'Steady operator',
@@ -60,12 +80,16 @@ const status = document.querySelector('#game-status');
 const trayButton = document.querySelector('.tray-handle');
 const tray = document.querySelector('#management-tray');
 const trayContent = document.querySelector('#tray-content');
-const inspector = document.querySelector('#inspector-content');
 const dialog = document.querySelector('#game-dialog');
 const dialogTitle = document.querySelector('#dialog-title');
 const dialogContent = document.querySelector('#dialog-content');
 const dialogActions = document.querySelector('#dialog-actions');
 const announcer = document.querySelector('#game-announcer');
+const boardStage = document.querySelector('.board-stage');
+const campusMap = document.querySelector('.campus-map');
+const runtimeBoard = document.querySelector('[data-runtime-board]');
+const fountain = document.querySelector('.quad__fountain');
+const runtimeFountain = document.querySelector('[data-runtime-fountain]');
 
 let content = null;
 let controller = null;
@@ -83,6 +107,8 @@ let presentationQueue = [];
 let currentPresentation = null;
 let presentationReturnFocus = null;
 let presentationReturnSelector = null;
+let quadRuntime = null;
+let quadResizeObserver = null;
 const numberFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 const storage = (() => {
   try {
@@ -96,6 +122,188 @@ function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (character) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   }[character]));
+}
+
+function runtimeAssetUrl(path) {
+  if (typeof path !== 'string') throw new TypeError(`Invalid university quad runtime path: ${path}`);
+  const normalized = path.replaceAll('\\', '/');
+  if (!normalized || normalized.startsWith('/') || normalized.split('/').includes('..')) {
+    throw new TypeError(`Invalid university quad runtime path: ${path}`);
+  }
+  return `${QUAD_RUNTIME_ROOT}/${normalized}`;
+}
+
+function validateQuadRuntime(manifest) {
+  const expectedPads = DEPARTMENTS.map((department) => padIdByDepartment[department] ?? department).sort();
+  const padIds = manifest?.pads?.map((pad) => pad.id).sort();
+  if (manifest?.schemaVersion !== 1 || JSON.stringify(padIds) !== JSON.stringify(expectedPads)) {
+    throw new TypeError('University quad runtime manifest must define the six canonical pads.');
+  }
+  if (manifest.coordinateSpace?.width !== manifest.board?.size?.[0]
+    || manifest.coordinateSpace?.height !== manifest.board?.size?.[1]) {
+    throw new TypeError('University quad board and coordinate space do not match.');
+  }
+  if (manifest.fountain?.statefulImplementation !== 'static-sprite'
+    || manifest.fountain?.overlayProceduralWaterOnFallback !== false) {
+    throw new TypeError('University quad must use the static fountain sprite without procedural water.');
+  }
+  if (!/^(\d+) \+ round\(boardPivotY\)$/.test(manifest.depth?.worldObject ?? '')) {
+    throw new TypeError('University quad world depth formula is unsupported.');
+  }
+  [manifest.board.image, ...Object.values(manifest.buildingTemplate?.images ?? {}),
+    manifest.characters?.manifest, manifest.fountain.staticFallbackImage].forEach(runtimeAssetUrl);
+  return manifest;
+}
+
+function validateCharacterRuntime(manifest) {
+  if (manifest?.schemaVersion !== 1 || manifest.canonicalPayload !== 'atlas'
+    || manifest.columns !== 4 || manifest.rows !== 4 || manifest.frames?.length !== 16) {
+    throw new TypeError('University quad character atlas contract is invalid.');
+  }
+  if (manifest.frames.some((frame) => !Array.isArray(frame.pivot) || frame.pivot.length !== 2)) {
+    throw new TypeError('University quad character frames require pivots.');
+  }
+  runtimeAssetUrl(`Characters/${manifest.image}`);
+  return manifest;
+}
+
+function syncCampusViewport() {
+  if (!quadRuntime || !boardStage.clientWidth || !boardStage.clientHeight) return;
+  const { width, height } = quadRuntime.coordinateSpace;
+  const scale = Math.min(boardStage.clientWidth / width, boardStage.clientHeight / height);
+  const renderWidth = width * scale;
+  const renderHeight = height * scale;
+  campusMap.style.width = `${renderWidth}px`;
+  campusMap.style.height = `${renderHeight}px`;
+  campusMap.style.left = `${(boardStage.clientWidth - renderWidth) / 2}px`;
+  campusMap.style.top = `${(boardStage.clientHeight - renderHeight) / 2}px`;
+  document.querySelectorAll('.building').forEach((building) => {
+    const pad = quadRuntime.pads.find((candidate) => candidate.id === building.dataset.padId);
+    applyBuildingGeometry(building, Number(building.dataset.level), pad, scale);
+  });
+}
+
+function applyBuildingGeometry(building, level, pad, scale) {
+  const { buildingTemplate } = quadRuntime;
+  const xs = pad.footprint.map(([x]) => x);
+  const padWidth = Math.max(...xs) - Math.min(...xs);
+  const modelWidth = padWidth * buildingTemplate.levelPadCoverage[String(level)] * scale;
+  const modelHeight = modelWidth;
+  const [sourceWidth, sourceHeight] = buildingTemplate.size;
+  const [pivotX, pivotY] = buildingTemplate.sourcePivot;
+  building.style.setProperty('--model-width', `${modelWidth}px`);
+  building.style.setProperty('--model-height', `${modelHeight}px`);
+  building.style.setProperty('--building-control-width', `${Math.max(136, modelWidth)}px`);
+  building.style.setProperty('--model-pivot-offset-x', `${modelWidth * (pivotX / sourceWidth - 0.5)}px`);
+  building.style.setProperty('--model-pivot-offset-y', `${modelHeight * (1 - pivotY / sourceHeight)}px`);
+}
+
+function startCampusRoutes(worldDepthBase) {
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const movingPeople = [...document.querySelectorAll('.person:not(.person--seated):not(.person--frisbee)')];
+  movingPeople.forEach((person, index) => {
+    const route = CAMPUS_ROUTES[index % CAMPUS_ROUTES.length];
+    const frames = route.map(([x, y]) => ({
+      left: `${x / quadRuntime.coordinateSpace.width * 100}%`,
+      top: `${y / quadRuntime.coordinateSpace.height * 100}%`,
+      zIndex: String(worldDepthBase + Math.round(y)),
+    }));
+    Object.assign(person.style, frames[0]);
+    person.routeAnimation?.cancel();
+    if (!reducedMotion) {
+      person.routeAnimation = person.animate(frames, {
+        duration: person.classList.contains('person--runner') ? 9000 : 15000,
+        delay: index * -1300,
+        direction: 'alternate',
+        easing: 'linear',
+        iterations: Infinity,
+      });
+    }
+  });
+}
+
+function applyQuadRuntime(manifest, characterManifest) {
+  quadRuntime = manifest;
+  const root = document.documentElement;
+  const { viewportContract, interactions, construction, buildingTemplate, depth } = manifest;
+  root.style.setProperty('--header-height', `${viewportContract.headerHeight}px`);
+  root.style.setProperty('--bottom-hud-height', `${viewportContract.bottomHudHeight}px`);
+  root.style.setProperty('--activity-rail-width', `${viewportContract.activityRailWidth.default}px`);
+  root.style.setProperty('--activity-rail-compact-width', `${viewportContract.activityRailWidth.compact}px`);
+  root.style.setProperty('--building-shadow', buildingTemplate.contactShadow);
+  root.style.setProperty('--building-default-transform', interactions.default.modelTransform);
+  root.style.setProperty('--building-hover-transform', interactions.hover.modelTransform);
+  root.style.setProperty('--building-pressed-transform', interactions.pressed.modelTransform);
+  root.style.setProperty('--interaction-duration', `${interactions.hover.durationMs}ms`);
+  root.style.setProperty('--interaction-easing', interactions.hover.easing);
+  root.style.setProperty('--focus-outline', interactions.focus.outline);
+  root.style.setProperty('--focus-outline-offset', `${interactions.focus.outlineOffset}px`);
+  root.style.setProperty('--selected-border', interactions.selected.captionBorder);
+  root.style.setProperty('--selected-ring', interactions.selected.captionRing);
+  root.style.setProperty('--valid-outline', interactions.validPlacement.outline);
+  root.style.setProperty('--invalid-outline', interactions.invalidPlacement.outline);
+  root.style.setProperty('--valid-preview-opacity', String(interactions.validPlacement.previewOpacity));
+  root.style.setProperty('--invalid-preview-opacity', String(interactions.invalidPlacement.previewOpacity));
+  root.style.setProperty('--interaction-overlay-depth', String(depth.interactionOverlay));
+  root.style.setProperty('--hud-depth', String(depth.hud));
+  root.style.setProperty('--construction-rise-duration', `${construction.rise.durationMs}ms`);
+  root.style.setProperty('--construction-dust-duration', `${construction.dust.durationMs}ms`);
+  root.style.setProperty('--construction-easing', construction.rise.easing);
+  root.style.setProperty('--construction-rise-from', construction.rise.from);
+  root.style.setProperty('--construction-rise-to', construction.rise.to);
+  root.style.setProperty('--student-atlas', `url("${runtimeAssetUrl(`Characters/${characterManifest.image}`)}")`);
+  const [characterPivotX, characterPivotY] = characterManifest.frames[0].pivot;
+  root.style.setProperty('--student-pivot-x', `${-characterPivotX / characterManifest.frameWidth * 100}%`);
+  root.style.setProperty('--student-pivot-y', `${-characterPivotY / characterManifest.frameHeight * 100}%`);
+
+  runtimeBoard.src = runtimeAssetUrl(manifest.board.image);
+  runtimeFountain.src = runtimeAssetUrl(manifest.fountain.staticFallbackImage);
+  fountain.style.left = `${manifest.fountain.boardPivot[0] / manifest.coordinateSpace.width * 100}%`;
+  fountain.style.top = `${manifest.fountain.boardPivot[1] / manifest.coordinateSpace.height * 100}%`;
+  fountain.style.width = `${manifest.fountain.staticFallbackDisplayWidth / manifest.coordinateSpace.width * 100}%`;
+  fountain.style.transform = `translate(${-manifest.fountain.staticFallbackPivot[0] / manifest.fountain.staticFallbackSize[0] * 100}%, ${-manifest.fountain.staticFallbackPivot[1] / manifest.fountain.staticFallbackSize[1] * 100}%)`;
+  fountain.style.zIndex = String(depth.fountain);
+
+  const worldDepthBase = Number(depth.worldObject.match(/^(\d+)/)[1]);
+  document.querySelectorAll('.building').forEach((building) => {
+    const padId = padIdByDepartment[building.dataset.department] ?? building.dataset.department;
+    const pad = manifest.pads.find((candidate) => candidate.id === padId);
+    const [x, y] = pad.placementPivot;
+    building.dataset.padId = pad.id;
+    building.style.left = `${x / manifest.coordinateSpace.width * 100}%`;
+    building.style.top = `${y / manifest.coordinateSpace.height * 100}%`;
+    building.style.zIndex = String(worldDepthBase + Math.round(y));
+    building.dataset.worldDepth = building.style.zIndex;
+    building.querySelector('[data-runtime-building]').src = runtimeAssetUrl(buildingTemplate.images[pad.id]);
+  });
+
+  document.querySelectorAll('.person').forEach((person, index) => {
+    const x = Number(person.dataset.boardX);
+    const y = Number(person.dataset.boardY);
+    person.style.left = `${x / manifest.coordinateSpace.width * 100}%`;
+    person.style.top = `${y / manifest.coordinateSpace.height * 100}%`;
+    person.style.zIndex = String(worldDepthBase + Math.round(y));
+    person.dataset.actorId = `student-${index + 1}`;
+  });
+  startCampusRoutes(worldDepthBase);
+
+  quadResizeObserver?.disconnect();
+  quadResizeObserver = new ResizeObserver(syncCampusViewport);
+  quadResizeObserver.observe(boardStage);
+  syncCampusViewport();
+}
+
+function applyCampusState(fixture) {
+  const stateKey = { prosperous: 'prosperity', strained: 'strain', austerity: 'austerity', early: 'prosperity' }[fixture];
+  const state = quadRuntime.campusStates[stateKey];
+  document.body.dataset.campusState = stateKey;
+  document.body.dataset.population = String(state.population);
+  document.body.dataset.frisbee = state.frisbee ? 'on' : 'off';
+  document.body.dataset.maintenance = state.maintenanceCue ? 'on' : 'off';
+  document.body.dataset.protest = state.protestCue ? 'on' : 'off';
+  document.documentElement.style.setProperty('--campus-grass', state.grass);
+  document.documentElement.style.setProperty('--campus-dark', state.grassDark);
+  document.documentElement.style.setProperty('--building-saturation', String(state.buildingSaturation));
 }
 
 function formatNumber(value) {
@@ -170,31 +378,132 @@ function actionCost(action, view) {
   return option.cost ? `${formatMoney(option.cost)} committed` : 'No spend';
 }
 
-function departmentEffect(department, level) {
+function modifierList(items) {
+  return `<ul class="modifier-list">${items.map(({ text, tone = 'neutral' }) => `<li class="is-${tone}">${escapeHtml(text)}</li>`).join('')}</ul>`;
+}
+
+function departmentModifiers(department, level) {
   const config = content.config;
   if (department === 'admissions') {
-    return `${formatNumber(level * config.departments.admissions.pullPerLevelPerRound)} applicant pull each term at ${Math.round(config.departments.admissions.baseYield * 100)}% base yield.`;
+    return [
+      { tone: 'positive', text: `${formatNumber(level * config.departments.admissions.pullPerLevelPerRound)} applicant pull each term` },
+      { tone: 'positive', text: `${Math.round(config.departments.admissions.baseYield * 100)}% base recruiting yield` },
+    ];
   }
   if (department === 'marketing') {
-    return `Campaigns can commit up to ${formatMoney(config.departments.marketing.campaignSpendCapByLevel[level])} this term.`;
+    return [
+      { tone: 'positive', text: `${formatNumber(config.departments.marketing.pullPerMillionSpent)} applicant pull per ${formatMoney(1)} of campaign spend` },
+      { tone: 'neutral', text: `${formatMoney(config.departments.marketing.campaignSpendCapByLevel[level])} campaign spending cap per term` },
+    ];
   }
   if (department === 'academics') {
     const rate = config.departments.academics.graduationRateBase + level * config.departments.academics.graduationRatePerLevel;
-    return `${formatNumber(level * config.departments.academics.studentCapacityPerLevel)} student capacity and ${Math.round(rate * 100)}% graduation rate.`;
+    return [
+      { tone: 'positive', text: `${formatNumber(level * config.departments.academics.studentCapacityPerLevel)} student capacity` },
+      { tone: 'positive', text: `${Math.round(rate * 100)}% graduation rate` },
+    ];
   }
   if (department === 'studentAffairs') {
     const retention = Math.min(config.departments.studentAffairs.retentionCap,
       config.departments.studentAffairs.retentionBase + level * config.departments.studentAffairs.retentionPerLevel);
-    return `${(retention * 100).toFixed(1)}% annual retention before other effects.`;
+    return [{ tone: 'positive', text: `${(retention * 100).toFixed(1)}% annual retention before other effects` }];
   }
   if (department === 'athletics') {
     const odds = config.departments.athletics.seasonOddsByLevel[level];
-    return `${Math.round(odds.great * 100)}% great season · ${Math.round(odds.good * 100)}% good · ${Math.round(odds.losing * 100)}% losing.`;
+    const athletics = config.departments.athletics;
+    return [
+      { tone: 'positive', text: `${Math.round(odds.great * 100)}% great season: ${formatMoney(athletics.greatSeason.money, true)}, +${athletics.greatSeason.reputation} reputation, +${formatNumber(athletics.greatSeason.bonusConversionsNextRound)} students next term` },
+      { tone: 'positive', text: `${Math.round(odds.good * 100)}% good season: ${formatMoney(athletics.goodSeason.money, true)}, +${athletics.goodSeason.reputation} reputation` },
+      { tone: 'negative', text: `${Math.round(odds.losing * 100)}% losing season: ${formatMoney(athletics.losingSeason.money, true)}, ${athletics.losingSeason.reputation} reputation, and an extra Crisis` },
+    ];
   }
-  const unlocked = Object.entries(config.departments.administration.tiers)
-    .filter(([tier]) => Number(tier) <= level)
-    .map(([tier]) => `Level ${tier} policy`);
-  return unlocked.length ? `${unlocked.join(' · ')} active.` : 'No Administration modifier is active yet.';
+  const tiers = config.departments.administration.tiers;
+  const effects = [];
+  if (level >= 2) effects.push({ tone: 'positive', text: `Crisis severity reduced by ${tiers['2'].crisisSeverityReduction}` });
+  if (level >= 3) effects.push({ tone: 'positive', text: 'Annual disruptions revealed one extra year early' });
+  if (level >= 4) effects.push({ tone: 'positive', text: `Total upkeep reduced ${Math.round(tiers['4'].totalUpkeepDiscount * 100)}%` });
+  if (level >= 5) effects.push({ tone: 'positive', text: `${tiers['5'].crisisCancelsPerYear} Crisis cancellation per year` });
+  return effects.length ? effects : [{ tone: 'neutral', text: 'No Administration protection yet' }];
+}
+
+function departmentEffect(department, level) {
+  return `${departmentModifiers(department, level).map(({ text }) => text).join('; ')}.`;
+}
+
+function percentChange(value) {
+  const percent = Math.round(Math.abs(value - 1) * 100);
+  return `${percent}% ${value >= 1 ? 'increase' : 'decrease'}`;
+}
+
+function headlineEffectDescription(effect) {
+  if (effect.type === 'noOp') return 'No rule change this term.';
+  if (effect.type === 'tuitionMultiplier') return `Tuition income: ${percentChange(effect.value)}.`;
+  if (effect.type === 'poolAllotmentMultiplier') return `Applicant pool: ${percentChange(effect.value)}.`;
+  if (effect.type === 'allUpkeepMultiplier') return `All upkeep: ${percentChange(effect.value)}.`;
+  if (effect.type === 'departmentUpkeepMultiplier') return `${departmentNames[effect.department]} upkeep: ${percentChange(effect.value)}.`;
+  if (effect.type === 'allPullMultiplier') return `All recruiting pull: ${percentChange(effect.value)}.`;
+  if (effect.type === 'campaignPullMultiplier') return `Campaign recruiting pull: ${percentChange(effect.value)}.`;
+  if (effect.type === 'programPullMultiplier') return `${titleCase(effect.program)} recruiting pull: ${percentChange(effect.value)} for campuses offering it.`;
+  if (effect.type === 'yieldMultiplier') return `All recruiting yield: ${percentChange(effect.value)}.`;
+  if (effect.type === 'reputationDeltaAll') return `Every campus: ${effect.value > 0 ? '+' : ''}${effect.value} reputation.`;
+  if (effect.type === 'moneyDeltaAll') return `Every campus: ${formatMoney(effect.value, true)} treasury.`;
+  if (effect.type === 'programMoneyDelta') return `${titleCase(effect.program)} campuses: ${formatMoney(effect.value, true)} treasury.`;
+  if (effect.type === 'poachCostDelta') return `Recruiting from a rival costs ${formatMoney(Math.abs(effect.value))} ${effect.value > 0 ? 'more' : 'less'} this term.`;
+  return content.cards.headlineRules.effectVocabulary[effect.type] ?? titleCase(effect.type);
+}
+
+function headlineEffectTone(effect) {
+  if (effect.type === 'noOp') return 'neutral';
+  if (effect.type.includes('Upkeep')) return effect.value <= 1 ? 'positive' : 'negative';
+  if (effect.type === 'poachCostDelta') return effect.value <= 0 ? 'positive' : 'negative';
+  return effect.value > 0 && effect.value < 1 ? 'negative' : effect.value < 0 ? 'negative' : 'positive';
+}
+
+function actionModifiers(action, option, view) {
+  if (action.type === 'upgrade') {
+    const nextLevel = view.own.departments[action.department] + 1;
+    const management = buildingManagement(view, action.department, content);
+    return [
+      { tone: 'neutral', text: `Build to Level ${nextLevel}` },
+      ...departmentModifiers(action.department, nextLevel),
+      { tone: management.baseUpkeepChange > 0 ? 'negative' : 'positive', text: `${formatMoney(management.baseUpkeepChange, true)} base upkeep per term` },
+    ];
+  }
+  if (action.type === 'sell') {
+    const nextLevel = view.own.departments[action.department] - 1;
+    return [
+      { tone: 'negative', text: `Building drops to Level ${nextLevel}` },
+      { tone: 'neutral', text: `At Level ${nextLevel}: ${departmentEffect(action.department, nextLevel)}` },
+      { tone: 'positive', text: `Save ${formatMoney(option.upkeepSaved)} base upkeep per term` },
+    ];
+  }
+  if (action.type === 'openProgram') {
+    const program = content.config.programs.catalog[action.program];
+    const benefits = {
+      artsAndSciences: [
+        { tone: 'positive', text: `Add ${formatNumber(program.academicsCapacityBonus)} student capacity` },
+        { tone: 'negative', text: 'Academics Crisis targeting is doubled' },
+      ],
+      business: [{ tone: 'neutral', text: 'Recruiting pull rises or falls with reputation squared' }],
+      education: [{ tone: 'positive', text: `Add ${(program.annualRetentionBonus * 100).toFixed(0)} retention percentage points each year` }],
+      engineering: [{ tone: 'positive', text: `Add $${Math.round(program.donationPerAlumBonusPerYear * 1_000_000)} per alum to annual donations` }],
+      nursing: [{ tone: 'positive', text: 'Guaranteed yield ignores reputation and applicant-pool scaling' }],
+      publicAffairs: [{ tone: 'positive', text: `${formatMoney(program.annualStateGrantPerAdminLevel)} yearly grant per Administration level` }],
+    }[action.program];
+    return [
+      { tone: 'positive', text: `${formatNumber(program.pullPerRound)} applicant pull each term` },
+      { tone: 'negative', text: `${formatMoney(program.upkeepPerRound)} base upkeep per term` },
+      ...benefits,
+    ];
+  }
+  if (action.type === 'campaign') {
+    const pull = action.spend * content.config.departments.marketing.pullPerMillionSpent;
+    return [{ tone: 'positive', text: `${formatNumber(pull)} applicant pull this term before yield and pool scaling` }];
+  }
+  if (action.type === 'poach') {
+    return [{ tone: 'positive', text: `Gain ${Math.round(content.config.poaching.fractionOfTargetYearLossesGained * 100)}% of that rival's student losses this year` }];
+  }
+  return [{ tone: 'neutral', text: 'Leave the slot unused and keep the cash' }];
 }
 
 function eventDescription(event, view) {
@@ -236,21 +545,6 @@ function eventDescription(event, view) {
   }
   if (event.type === 'gameFinished') return `${schoolName(view, event.winnerId)} won the game.`;
   return null;
-}
-
-function activityItems(view, limit = 7) {
-  const items = [];
-  for (const entry of view.history) {
-    for (const event of entry.events) {
-      if (event.type === 'actionsResolved') {
-        for (const action of event.actions) items.push(eventDescription({ type: 'actionResolved', ...action }, view));
-      } else {
-        const description = eventDescription(event, view);
-        if (description) items.push(description);
-      }
-    }
-  }
-  return items.filter(Boolean).slice(-limit).reverse();
 }
 
 function announceTransition(events) {
@@ -476,7 +770,8 @@ function presentationCardMarkup(record, view) {
   const guide = isPlayer && !view.tutorial.cardDismissed
     ? '<aside class="ceremony-guide"><strong>How cards scale</strong><p>The targeted building sets the factor. Crisis severity may then fall through Administration. The displayed result is explanatory only; the engine has already resolved it once.</p></aside>'
     : '';
-  const effects = record.effects?.map((effect) => `<li class="${effect.skipped ? 'is-skipped' : ''}"><span>${escapeHtml(effect.label)}</span><strong>${escapeHtml(effectResult(effect))}</strong></li>`).join('') ?? '';
+  const effectTone = record.cardKind === 'fortune' ? 'positive' : 'negative';
+  const effects = record.effects?.map((effect) => `<li class="is-${effectTone} ${effect.skipped ? 'is-skipped' : ''}"><span>${escapeHtml(effect.label)}</span><strong>${escapeHtml(effectResult(effect))}</strong></li>`).join('') ?? '';
   return `<div class="ceremony ceremony--${escapeHtml(record.cardKind)}">
     <p class="eyebrow">Resolved card &middot; Severity ${record.severity}</p>
     <div class="card-orientation">
@@ -539,7 +834,8 @@ function showNextPresentation() {
 
   if (currentPresentation.kind === 'headline') {
     dialogTitle.textContent = currentPresentation.title;
-    dialogContent.innerHTML = `<div class="ceremony ceremony--headline"><p class="eyebrow">Shared Headline &middot; applies to every active campus</p><div class="card-orientation"><span><small>Who it affects</small><strong>All four campuses</strong></span><span><small>What it does</small><strong>Changes shared rules this term</strong></span><span><small>Your action</small><strong>Review, then allocate</strong></span></div><blockquote>${escapeHtml(currentPresentation.flavor)}</blockquote><p>The policy environment has settled into the live Briefing. Review its actual tuition and upkeep effects before allocating.</p></div>`;
+    const effects = currentPresentation.effects.map((effect) => `<li class="is-${headlineEffectTone(effect)}">${escapeHtml(headlineEffectDescription(effect))}</li>`).join('');
+    dialogContent.innerHTML = `<div class="ceremony ceremony--headline"><p class="eyebrow">Shared Headline &middot; applies to every active campus</p><div class="card-orientation"><span><small>Who it affects</small><strong>All four campuses</strong></span><span><small>When</small><strong>This term only</strong></span><span><small>Your action</small><strong>Review, then choose actions</strong></span></div><blockquote>${escapeHtml(currentPresentation.flavor)}</blockquote><section class="headline-rule"><strong>Rule in effect</strong><ul>${effects}</ul></section></div>`;
   } else if (currentPresentation.kind === 'playerCard' || currentPresentation.kind === 'rivalCard') {
     dialogTitle.textContent = currentPresentation.title;
     dialogContent.innerHTML = presentationCardMarkup(currentPresentation, view);
@@ -558,7 +854,8 @@ function showNextPresentation() {
   }
 
   const final = currentPresentation.kind === 'finalIssue';
-  dialogActions.innerHTML = `${presentationQueue.length ? '<button class="text-button" type="button" data-skip-presentations>Send remaining to Board Book</button>' : ''}<button class="primary-button" type="button" data-continue-presentation>${final ? 'Return to final campus' : 'Continue'}</button>`;
+  const continueLabel = final ? 'Return to final campus' : currentPresentation.kind === 'headline' ? 'Continue to Actions' : 'Continue';
+  dialogActions.innerHTML = `${presentationQueue.length ? '<button class="text-button" type="button" data-skip-presentations>Send remaining to Board Book</button>' : ''}<button class="primary-button" type="button" data-continue-presentation>${continueLabel}</button>`;
   dialog.showModal();
   dialogActions.querySelector('[data-continue-presentation]').focus();
 }
@@ -574,17 +871,26 @@ function enqueuePresentation(events, returnSelector = null) {
 
 function completePresentation(skipRemaining = false) {
   if (!currentPresentation) return;
+  const kind = currentPresentation.kind;
   const view = controller.getView();
   if (currentPresentation.kind === 'playerCard' && !view.tutorial.cardDismissed) controller.dismissTutorial('card');
   if (currentPresentation.kind === 'annualReport' && !view.tutorial.reportDismissed) controller.dismissTutorial('report');
   if (skipRemaining) presentationQueue = [];
   currentPresentation = null;
+  if (kind === 'headline') {
+    activeSection = 'allocate';
+    setTrayExpanded(true, true);
+    renderGame();
+  }
   dialog.close();
 }
 
 function setTrayExpanded(expanded, instant = false) {
   if (instant) tray.classList.add('is-instant');
   trayButton.setAttribute('aria-expanded', String(expanded));
+  trayButton.setAttribute('aria-label', expanded ? 'Close management desk and return to campus' : 'Open management desk');
+  trayButton.children[0].textContent = expanded ? 'Return to campus' : 'Management desk';
+  trayButton.children[1].textContent = expanded ? '↓' : '↑';
   tray.setAttribute('aria-hidden', String(!expanded));
   tray.inert = !expanded;
   if (instant) requestAnimationFrame(() => tray.classList.remove('is-instant'));
@@ -613,34 +919,48 @@ function renderRivalCampuses(view, rankings) {
   }).join('');
 }
 
-function renderInspector(view) {
-  const management = buildingManagement(view, selectedDepartment, content);
-  const upgradeKey = management.upgrade ? registerAction(management.upgrade.action) : null;
-  const sellKey = management.sell ? registerAction(management.sell.action) : null;
-  const nextEffect = management.nextLevel ? departmentEffect(selectedDepartment, management.nextLevel) : 'This building has reached its final form.';
-  inspector.innerHTML = `
-    <p class="eyebrow">Selected building</p>
-    <h2 id="activity-heading">${escapeHtml(departmentNames[selectedDepartment])} <span>Level ${management.level}</span></h2>
-    <p class="atmosphere-note">${escapeHtml(departmentEffect(selectedDepartment, management.level))}</p>
+function openBuildingReference(department, trigger) {
+  const view = controller.getView();
+  const management = buildingManagement(view, department, content);
+  const canPlan = view.phase === 'allocation' && (management.upgrade || management.sell);
+  presentationReturnFocus = trigger;
+  dialog.dataset.mandatory = 'false';
+  dialog.dataset.purpose = 'reference';
+  dialog.classList.add('building-dialog');
+  dialogTitle.textContent = departmentNames[department];
+  dialogContent.innerHTML = `<div class="building-reference">
+    <p class="eyebrow">Campus building &middot; Level ${management.level}</p>
+    <section>
+      <h3>Current effects</h3>
+      ${modifierList(departmentModifiers(department, management.level))}
+    </section>
     <div class="building-next">
       <small>${management.nextLevel ? `Level ${management.nextLevel}` : 'Maximum level'}</small>
-      <strong>${management.nextLevel ? `${formatMoney(management.upgradeCost)} build · ${formatMoney(management.baseUpkeepChange, true)} base upkeep` : 'Fully developed'}</strong>
-      <span>${escapeHtml(nextEffect)}</span>
+      <strong>${management.nextLevel ? `${formatMoney(management.upgradeCost)} to build` : 'Fully developed'}</strong>
+      ${management.nextLevel ? modifierList([
+        ...departmentModifiers(department, management.nextLevel),
+        { tone: management.baseUpkeepChange > 0 ? 'negative' : 'positive', text: `${formatMoney(management.baseUpkeepChange, true)} base upkeep per term` },
+      ]) : ''}
     </div>
-    <div class="inspector-actions">
-      ${upgradeKey ? `<button class="primary-button" type="button" data-stage-action="${upgradeKey}">Add upgrade to plan</button>` : `<p class="unavailable-note">${escapeHtml(management.upgradeReason)}</p>`}
-      ${sellKey ? `<button class="text-button" type="button" data-stage-action="${sellKey}">Plan voluntary sale</button>` : ''}
-    </div>`;
-}
-
-function renderActivity(view) {
-  const items = activityItems(view);
-  document.querySelector('#activity-feed').innerHTML = (items.length ? items : ['The quad is ready for its first term.'])
-    .map((item) => `<li>${escapeHtml(item)}</li>`).join('');
+    ${canPlan ? '' : `<p class="unavailable-note">${escapeHtml(management.upgradeReason)}</p>`}
+  </div>`;
+  dialogActions.innerHTML = `<button class="secondary-button" type="button" data-close-reference>Return to campus</button>${canPlan ? '<button class="primary-button" type="button" data-open-allocation>Open Actions</button>' : ''}`;
+  dialog.showModal();
+  dialogActions.querySelector('button').focus();
 }
 
 function renderBriefing(view) {
   const capacity = view.own.departments.academics * content.config.departments.academics.studentCapacityPerLevel;
+  const budget = operatingBudget(view, content);
+  const budgetScale = Math.max(1, budget.termIncome, budget.termExpenses);
+  const departmentExpense = new Map(budget.departmentExpenses.map((item) => [item.department, item.value]));
+  const recurringExpenses = [
+    ...DEPARTMENTS.map((department) => ({ label: departmentNames[department], value: departmentExpense.get(department) })),
+    ...budget.programExpenses.map((item) => ({ label: titleCase(item.program), value: item.value })),
+  ];
+  const actual = budget.lastTerm
+    ? `Last term actual: ${formatMoney(budget.lastTerm.tuition)} tuition and ${formatMoney(budget.lastTerm.upkeep)} upkeep.`
+    : 'Preseason forecast; no settled term is available yet.';
   const activeEffects = Object.entries(view.own.effects).filter(([, value]) => value !== 0 && value !== 1 && value !== null && value !== false);
   const warning = view.own.students > capacity
     ? `${formatNumber(view.own.students - capacity)} students above current Academics capacity.`
@@ -662,15 +982,29 @@ function renderBriefing(view) {
   } else if (view.phase === 'ready' && !view.finished) {
     primary = `<button class="primary-button" type="button" data-start-round>Begin ${escapeHtml(termLabel(view, true))}</button>`;
   } else if (view.phase === 'allocation') {
-    primary = '<button class="primary-button" type="button" data-open-allocation>Build the allocation plan</button>';
+    primary = '<button class="primary-button" type="button" data-open-allocation>Choose your actions</button>';
   }
   return `<div class="tray-layout">
     <div class="tray-copy"><p class="eyebrow">President's desk &middot; your planning step</p><h2>Briefing</h2><p>${view.phase === 'ready' ? 'Start the shared term when you are ready. The three rivals are waiting and cannot act until you begin.' : `Headline ${escapeHtml(view.headline ?? 'pending')} has settled. Choose your actions; the three rivals submit only when you confirm your allocation.`}</p>${primary}</div>
-    <div class="tray-preview briefing-grid">
-      <article><small>Position</small><strong>${formatMoney(view.own.treasury)}</strong><span>${view.own.paidUpkeepThisRound ? `${formatMoney(view.own.paidUpkeepThisRound)} upkeep paid` : 'Preseason treasury'}</span></article>
-      <article><small>Capacity</small><strong>${formatNumber(capacity)}</strong><span>${formatNumber(view.own.students)} students enrolled</span></article>
-      <article class="${warning.startsWith('No urgent') ? '' : 'is-warning'}"><small>Pressure</small><strong>${warning.startsWith('No urgent') ? 'Stable' : 'Watch'}</strong><span>${escapeHtml(warning)}</span></article>
-      <article><small>Active effects</small><strong>${activeEffects.length}</strong><span>${activeEffects.length ? 'Carrying into play' : 'No temporary modifiers'}</span></article>
+    <div class="briefing-dashboard">
+      <div class="tray-preview briefing-grid">
+        <article><small>Position</small><strong>${formatMoney(view.own.treasury)}</strong><span>${view.own.paidUpkeepThisRound ? `${formatMoney(view.own.paidUpkeepThisRound)} upkeep paid` : 'Preseason treasury'}</span></article>
+        <article><small>Capacity</small><strong>${formatNumber(capacity)}</strong><span>${formatNumber(view.own.students)} students enrolled</span></article>
+        <article class="${warning.startsWith('No urgent') ? '' : 'is-warning'}"><small>Pressure</small><strong>${warning.startsWith('No urgent') ? 'Stable' : 'Watch'}</strong><span>${escapeHtml(warning)}</span></article>
+        <article><small>Active effects</small><strong>${activeEffects.length}</strong><span>${activeEffects.length ? 'Carrying into play' : 'No temporary modifiers'}</span></article>
+      </div>
+      <section class="budget-panel" aria-labelledby="budget-title">
+        <header><div><p class="eyebrow">Budget &amp; cash flow</p><h3 id="budget-title">Year ${budget.forecastYear} recurring outlook</h3></div><span class="budget-margin ${budget.termBalance < 0 ? 'is-negative' : 'is-positive'}"><small>Operating margin</small><strong>${formatMoney(budget.termBalance, true)}</strong></span></header>
+        <div class="budget-chart" role="img" aria-label="Projected tuition ${formatMoney(budget.termIncome)} and recurring upkeep ${formatMoney(budget.termExpenses)} per term">
+          <div><span>Tuition</span><i style="--budget-width:${budget.termIncome / budgetScale * 100}%"></i><strong>${formatMoney(budget.termIncome)}</strong></div>
+          <div class="is-expense"><span>Upkeep</span><i style="--budget-width:${budget.termExpenses / budgetScale * 100}%"></i><strong>${formatMoney(budget.termExpenses)}</strong></div>
+        </div>
+        <div class="budget-ledger">
+          <section><h4>Income</h4><ul><li><span>Tuition per term</span><strong>${formatMoney(budget.termIncome)}</strong></li><li><span>Estimated year-end donations &amp; grants</span><strong>${formatMoney(budget.annualSupport)}</strong></li>${budget.plannedRecovery ? `<li><span>Planned one-time sale recovery</span><strong class="is-positive">${formatMoney(budget.plannedRecovery)}</strong></li>` : ''}</ul></section>
+          <section><h4>Recurring spending</h4><ul>${recurringExpenses.map((item) => `<li><span>${escapeHtml(item.label)}</span><strong>${formatMoney(item.value)}</strong></li>`).join('')}${budget.plannedSpend ? `<li><span>Planned one-time actions</span><strong class="is-negative">${formatMoney(budget.plannedSpend)}</strong></li>` : ''}</ul></section>
+        </div>
+        <p class="budget-note">${escapeHtml(actual)} Forecast includes known disruption, cost disease, Administration savings, and staged actions; the next Headline is not predictable.</p>
+      </section>
     </div>${decision}</div>`;
 }
 
@@ -687,7 +1021,7 @@ function renderEmergency(view) {
 
 function renderAllocation(view) {
   if (view.phase !== 'allocation' || view.legal?.kind !== 'allocation') {
-    return `<div class="tray-copy"><p class="eyebrow">Resource allocation</p><h2>Allocation</h2><p>${view.phase === 'ready' ? 'Begin the next term before making commitments.' : 'Allocation is unavailable while another decision is resolving.'}</p>${view.phase === 'ready' ? `<button class="primary-button" type="button" data-start-round>Begin ${escapeHtml(termLabel(view, true))}</button>` : ''}</div>`;
+    return `<div class="tray-copy"><p class="eyebrow">Turn actions</p><h2>Actions</h2><p>${view.phase === 'ready' ? 'Begin the next term before making commitments.' : 'Actions are unavailable while another decision is resolving.'}</p>${view.phase === 'ready' ? `<button class="primary-button" type="button" data-start-round>Begin ${escapeHtml(termLabel(view, true))}</button>` : ''}</div>`;
   }
   const summary = allocationSummary(view, content);
   if (activeSlot >= summary.maxActions) activeSlot = 0;
@@ -701,12 +1035,21 @@ function renderAllocation(view) {
   </article>`).join('');
   const options = view.legal.actions.filter((option) => option.action.type !== 'bank').map((option) => {
     const key = registerAction(option.action);
-    return `<button type="button" data-stage-action="${key}"><strong>${escapeHtml(actionLabel(option.action, view))}</strong><span>${escapeHtml(option.recovery ? `${formatMoney(option.recovery)} recovery` : option.cost ? formatMoney(option.cost) : 'No spend')}</span></button>`;
+    const conflictSlot = view.stagedActions.findIndex((action, index) => index !== activeSlot && action?.type === option.action.type);
+    const conflict = conflictSlot >= 0;
+    const typeName = actionTypeNames[option.action.type] ?? titleCase(option.action.type);
+    const cost = option.recovery ? `${formatMoney(option.recovery)} recovery` : option.cost ? formatMoney(option.cost) : 'No spend';
+    return `<button type="button" data-stage-action="${key}" ${conflict ? 'disabled' : ''}>
+      <small>${escapeHtml(typeName)}</small>
+      <strong>${escapeHtml(actionLabel(option.action, view))}</strong>
+      ${modifierList(actionModifiers(option.action, option, view))}
+      <b class="${option.recovery ? 'is-positive' : option.cost ? 'is-negative' : ''}">${escapeHtml(conflict ? `${typeName} already fills Action ${conflictSlot + 1}` : cost)}</b>
+    </button>`;
   }).join('');
-  const guide = view.tutorial.allocationDismissed ? '' : `<aside class="inline-guide"><div><strong>Your first allocation</strong><p>Choose a slot, then add or replace one legal action. Empty slots become Bank only when you confirm.</p></div><button type="button" data-dismiss-tutorial="allocation">Dismiss</button></aside>`;
+  const guide = view.tutorial.allocationDismissed ? '' : `<aside class="inline-guide"><div><strong>Your first turn</strong><p>Choose up to two different action types. Select a slot, choose one option, then confirm to let the rivals act.</p></div><button type="button" data-dismiss-tutorial="allocation">Dismiss</button></aside>`;
   return `${guide}<div class="allocation-layout">
-    <section><div class="section-heading"><div><p class="eyebrow">Resource allocation</p><h2>Commit this term</h2></div><span>${summary.bonusSlots ? `${summary.bonusSlots} bonus slot` : `${summary.maxActions} standard slots`}</span></div><div class="allocation-slots">${slots}</div>
-      <button class="primary-button" type="button" data-confirm-allocation>Confirm ${summary.bankSlots ? `with ${summary.bankSlots} Bank slot${summary.bankSlots === 1 ? '' : 's'}` : 'allocation'}</button>
+    <section><div class="section-heading"><div><p class="eyebrow">Your turn</p><h2>Plan this term</h2></div><span>${summary.bonusSlots ? `${summary.bonusSlots} bonus slot` : `${summary.maxActions} standard slots`}</span></div><div class="allocation-slots">${slots}</div>
+      <button class="primary-button" type="button" data-confirm-allocation>Confirm actions and resolve term</button>
       <div class="projection-strip">
         <span><small>Committed spend</small><strong>${formatMoney(summary.committedSpend)}</strong></span>
         <span><small>Sale recovery</small><strong>${formatMoney(summary.saleRecovery)}</strong></span>
@@ -714,7 +1057,7 @@ function renderAllocation(view) {
         <span><small>Base upkeep change</small><strong>${formatMoney(summary.baseUpkeepChange, true)}</strong></span>
       </div><p class="projection-note">Affordability uses the treasury you have now; sale recovery cannot fund same-term spend. Recruiting and cards are not projected.</p>
     </section>
-    <section class="action-catalog"><h3>Legal actions</h3><div class="action-grid">${options || '<p>No discretionary action is affordable.</p>'}</div></section>
+    <section class="action-catalog"><h3>Choose Action ${activeSlot + 1}</h3><p class="projection-note">Each slot must use a different action type. Select a filled slot to replace it.</p><div class="action-grid">${options || '<p>No discretionary action is affordable.</p>'}</div></section>
   </div>`;
 }
 
@@ -722,9 +1065,7 @@ function renderPrograms(view) {
   const programs = programManagement(view, content);
   const current = programs.current.length ? programs.current.map((program) => `<article><small>Open</small><strong>${escapeHtml(titleCase(program.program))}</strong><span>${formatMoney(program.upkeepPerRound)} base upkeep · ${formatNumber(program.pullPerRound)} pull</span></article>`).join('') : '<p class="empty-state">No Programs are open yet.</p>';
   const available = programs.available.map((option) => {
-    const key = registerAction(option.action);
-    const details = content.config.programs.catalog[option.action.program];
-    return `<article class="program-option"><div><small>${formatMoney(option.cost)} to open</small><strong>${escapeHtml(titleCase(option.action.program))}</strong><span>${formatNumber(details.pullPerRound)} pull · ${formatMoney(details.upkeepPerRound)} upkeep</span></div><button type="button" data-stage-action="${key}">Add to plan</button></article>`;
+    return `<article class="program-option"><div><small>${formatMoney(option.cost)} to open</small><strong>${escapeHtml(titleCase(option.action.program))}</strong>${modifierList(actionModifiers(option.action, option, view))}</div><button type="button" data-open-allocation>Choose in Actions</button></article>`;
   }).join('');
   return `<div class="program-layout">
     <section><div class="section-heading"><div><p class="eyebrow">Academic portfolio</p><h2>Programs</h2></div><span>${programs.openSlots} of ${programs.slotCount} slots open</span></div><div class="program-grid">${current}</div></section>
@@ -805,7 +1146,7 @@ function renderGame({ animateBuildings = false } = {}) {
   const emergency = view.pendingDecision?.type === 'forcedSale';
   document.body.dataset.gameState = emergency ? 'emergency' : view.finished ? 'complete' : view.mode;
   document.body.dataset.fixture = fixture;
-  document.body.dataset.population = view.own.students < 5000 ? 'low' : view.own.students > 11000 ? 'high' : 'medium';
+  applyCampusState(fixture);
   document.body.dataset.color = view.identity.color;
   document.querySelector('#campus-condition').textContent = campusCondition(fixture);
   document.querySelector('#campus-heading').textContent = view.own.name;
@@ -828,21 +1169,35 @@ function renderGame({ animateBuildings = false } = {}) {
     building.setAttribute('aria-pressed', String(department === selectedDepartment));
     building.disabled = emergency || view.finished;
     building.querySelector('.building__caption b').textContent = String(level);
-    if (animateBuildings && level > prior && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      building.classList.remove('is-building');
-      void building.offsetWidth;
-      building.classList.add('is-building');
-      setTimeout(() => building.classList.remove('is-building'), 900);
+    const selectedForPlacement = department === selectedDepartment && activeSection === 'allocate' && view.phase === 'allocation';
+    if (selectedForPlacement) {
+      const upgradeAvailable = view.legal?.actions?.some((option) => option.action.type === 'upgrade'
+        && option.action.department === department);
+      building.dataset.placement = upgradeAvailable ? 'valid' : 'invalid';
+    } else delete building.dataset.placement;
+    if (animateBuildings && level > prior) {
+      announcer.textContent = `${departmentNames[department]} rose to Level ${level}.`;
+      if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        building.classList.remove('is-building');
+        void building.offsetWidth;
+        building.classList.add('is-building');
+        building.style.zIndex = String(quadRuntime.depth.constructionFx);
+        const effectDuration = Math.max(quadRuntime.construction.rise.durationMs,
+          quadRuntime.construction.dust.durationMs);
+        setTimeout(() => {
+          building.classList.remove('is-building');
+          building.style.zIndex = building.dataset.worldDepth;
+        }, effectDuration);
+      }
     }
   });
+  syncCampusViewport();
 
   const guidance = turnGuidance(view, content.config.gameLength.roundsPerYear);
   status.dataset.tone = guidance.tone;
   status.innerHTML = saveWarning
     ? `<small>Save warning</small><strong>${escapeHtml(saveWarning)}</strong>`
     : `<small>${escapeHtml(guidance.eyebrow)}</small><strong>${escapeHtml(guidance.title)}</strong><span>${escapeHtml(guidance.detail)}</span>`;
-  renderInspector(view);
-  renderActivity(view);
   if (emergency || ['eliminationChoice', 'spectating'].includes(view.mode)) {
     activeSection = 'briefing';
     setTrayExpanded(true, true);
@@ -924,9 +1279,13 @@ function handleClick(event) {
       renderGame();
     } else if (button.matches('.building')) {
       selectedDepartment = button.dataset.department;
+      setTrayExpanded(false, event.detail === 0);
       renderGame();
+      openBuildingReference(selectedDepartment, button);
     } else if (button.matches('[data-open-allocation]')) {
+      if (dialog.open && dialog.dataset.purpose === 'reference') dialog.close();
       activeSection = 'allocate';
+      setTrayExpanded(true, event.detail === 0);
       renderGame();
     } else if (button.matches('[data-start-round]')) {
       const result = controller.startRound();
@@ -941,6 +1300,7 @@ function handleClick(event) {
     } else if (button.matches('[data-stage-action]')) {
       stageRegisteredAction(button.dataset.stageAction);
       renderGame();
+      tray.scrollTop = 0;
     } else if (button.matches('[data-clear-slot]')) {
       controller.clearAction(Number(button.dataset.clearSlot));
       activeSlot = Number(button.dataset.clearSlot);
@@ -1040,7 +1400,13 @@ async function start() {
   showStartup('<span class="startup__seal" aria-hidden="true">SS</span><h1>Opening the gates</h1><p>Validating the official campus records…</p>');
   status.textContent = 'Loading campus…';
   try {
-    const [config, cards] = await Promise.all([fetchJson('/balance-config.json'), fetchJson('/cards.json')]);
+    const manifest = validateQuadRuntime(await fetchJson(QUAD_MANIFEST_PATH));
+    const [config, cards, characterManifest] = await Promise.all([
+      fetchJson('/balance-config.json'),
+      fetchJson('/cards.json'),
+      fetchJson(runtimeAssetUrl(manifest.characters.manifest)),
+    ]);
+    applyQuadRuntime(manifest, validateCharacterRuntime(characterManifest));
     content = validateContent(config, cards);
     status.textContent = `Engine ${ENGINE_VERSION} · ${RIVAL_SCHOOLS.length} rival schools ready`;
     const loaded = loadSession(storage, content);
@@ -1070,7 +1436,7 @@ dialog.addEventListener('cancel', (event) => {
   }
 });
 dialog.addEventListener('close', () => {
-  dialog.classList.remove('ceremony-dialog');
+  dialog.classList.remove('ceremony-dialog', 'building-dialog');
   if (dialog.dataset.purpose === 'reference') {
     presentationReturnFocus?.focus();
     presentationReturnFocus = null;

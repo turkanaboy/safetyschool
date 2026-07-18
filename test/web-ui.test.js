@@ -8,6 +8,7 @@ import {
   createSoloController,
   createSoloSession,
   dumpRankings,
+  operatingBudget,
   programManagement,
   rivalProfile,
   turnGuidance,
@@ -36,7 +37,7 @@ function controller(seed = 211) {
 test('turn guidance makes ownership, next action, and rival timing explicit', () => {
   const game = controller(210);
   assert.deepEqual(turnGuidance(game.getView()), {
-    eyebrow: 'Your move',
+    eyebrow: 'Your turn',
     title: 'Begin Year 1 · Term 1',
     detail: 'Rivals are waiting for you to start the shared term.',
     tone: 'active',
@@ -46,6 +47,18 @@ test('turn guidance makes ownership, next action, and rival timing explicit', ()
   assert.match(turnGuidance(game.getView()).detail, /2 action slots open .* rivals submit when you confirm/i);
   game.stageAction(0, game.getView().legal.actions.find((option) => option.action.type !== 'bank').action);
   assert.match(turnGuidance(game.getView()).detail, /1 action slot open/i);
+});
+
+test('a second upgrade explains the one-action-type rule before allocation', () => {
+  const game = controller(217);
+  game.startRound();
+  const upgrades = game.getView().legal.actions.filter((option) => option.action.type === 'upgrade');
+
+  game.stageAction(0, upgrades[0].action);
+  assert.throws(
+    () => game.stageAction(1, upgrades[1].action),
+    /Only one upgrade action is allowed per term/i,
+  );
 });
 
 test('building management derives costs, upkeep, legal choices, and unavailable reasons', () => {
@@ -93,6 +106,26 @@ test('allocation summary keeps staged actions provisional and separates spend fr
   assert.equal(summary.projectedTreasury, view.own.treasury - summary.committedSpend);
   assert.equal(summary.slots[0].action.type, 'upgrade');
   assert.equal(summary.slots[1].action.type, 'openProgram');
+});
+
+test('operating budget explains recurring income and department spending without changing state', () => {
+  const game = controller(218);
+  const stateBefore = JSON.stringify(game.getSession().state);
+  const budget = operatingBudget(game.getView(), content);
+
+  assert.equal(budget.termIncome, 10);
+  assert.equal(budget.termExpenses, 9.85);
+  assert.equal(budget.termBalance, 0.15);
+  assert.deepEqual(Object.fromEntries(budget.departmentExpenses.map(({ department, value }) => [department, value])), {
+    academics: 4,
+    administration: 0.75,
+    admissions: 2,
+    athletics: 1.1,
+    marketing: 1,
+    studentAffairs: 1,
+  });
+  assert.equal(budget.annualSupport, 6);
+  assert.equal(JSON.stringify(game.getSession().state), stateBefore);
 });
 
 test('Programs uses committed Academics slots, not a same-term staged upgrade', () => {

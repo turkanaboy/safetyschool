@@ -1,6 +1,6 @@
 import { createAgent } from '../agents/index.js';
-import { canonicalStringify } from '../engine/content.js';
-import { advanceGame, createGame, legalActions, observeGame } from '../engine/index.js';
+import { canonicalStringify, DEPARTMENTS } from '../engine/content.js';
+import { advanceGame, createGame, legalActions, observeGame, roundMoney } from '../engine/index.js';
 import { deriveSeed } from '../engine/rng.js';
 
 export const RIVAL_SCHOOLS = Object.freeze([
@@ -119,13 +119,13 @@ export function turnGuidance(view, roundsPerYear = 5) {
     const used = view.stagedActions?.filter(Boolean).length ?? 0;
     const open = Math.max(0, maxActions - used);
     return {
-      eyebrow: 'Your move',
+      eyebrow: 'Your turn',
       title: `Plan ${term}`,
       detail: `${open} action slot${open === 1 ? '' : 's'} open · rivals submit when you confirm.`,
       tone: 'active',
     };
   }
-  return { eyebrow: 'Your move', title: `Begin ${term}`, detail: 'Rivals are waiting for you to start the shared term.', tone: 'active' };
+  return { eyebrow: 'Your turn', title: `Begin ${term}`, detail: 'Rivals are waiting for you to start the shared term.', tone: 'active' };
 }
 
 function departmentCostMultiplier(department, config) {
@@ -214,6 +214,78 @@ export function allocationSummary(view, content) {
     projectedTreasury: view.own.treasury - committedSpend + saleRecovery,
     baseUpkeepChange,
     bankSlots: maxActions - staged.length,
+  };
+}
+
+function effectProduct(card, type) {
+  return card?.effects.filter((effect) => effect.type === type)
+    .reduce((value, effect) => value * effect.value, 1) ?? 1;
+}
+
+export function operatingBudget(view, content) {
+  const config = content.config;
+  const departments = structuredClone(view.own.departments);
+  const programs = [...view.own.programs];
+  for (const action of view.stagedActions ?? []) {
+    if (action?.type === 'upgrade') departments[action.department] += 1;
+    if (action?.type === 'sell') departments[action.department] -= 1;
+    if (action?.type === 'openProgram') programs.push(action.program);
+  }
+
+  const forecastYear = Math.floor(view.round / config.gameLength.roundsPerYear) + 1;
+  const disruptionId = view.publicDisruptions?.[forecastYear] ?? view.activeDisruption;
+  const disruption = content.cards.annualDisruptions.find((card) => card.id === disruptionId);
+  const disease = config.economy.costDiseaseUpkeepMultiplierPerYear ** (forecastYear - 1);
+  const adminDiscount = departments.administration >= 4
+    ? config.departments.administration.tiers['4'].totalUpkeepDiscount
+    : 0;
+  const upkeepFactor = disease * effectProduct(disruption, 'upkeepMultiplier') * (1 - adminDiscount);
+  const departmentExpenses = DEPARTMENTS.map((department) => ({
+    department,
+    value: config.departmentCostCurve.upkeepAtLevel[departments[department]]
+      * departmentCostMultiplier(department, config) * upkeepFactor,
+  }));
+  const programExpenses = programs.map((program) => ({
+    program,
+    value: config.programs.catalog[program].upkeepPerRound * upkeepFactor,
+  }));
+  const termIncome = view.own.students * config.economy.tuitionPerStudentPerRound
+    * effectProduct(disruption, 'tuitionMultiplier');
+  const termExpenses = [...departmentExpenses, ...programExpenses]
+    .reduce((total, item) => total + item.value, 0);
+
+  let donationPerAlum = config.economy.donationPerAlumPerYearBase * departments.academics;
+  let grants = 0;
+  for (const program of programs) {
+    const definition = config.programs.catalog[program];
+    const rider = disruption?.effects.find((effect) => effect.type === 'programRider'
+      && effect.program === program)?.modifier;
+    donationPerAlum += (definition.donationPerAlumBonusPerYear ?? 0)
+      * (rider?.donationBonusMultiplier ?? 1);
+    grants += (definition.annualStateGrantPerAdminLevel ?? 0) * departments.administration;
+  }
+  const annualSupport = view.own.alumni * donationPerAlum
+    * (view.own.effects.donationMultiplierThisYearEnd ?? 1)
+    * effectProduct(disruption, 'donationMultiplier') + grants;
+  const staged = view.legal?.kind === 'allocation' ? allocationSummary(view, content) : null;
+
+  let lastTerm = null;
+  for (let index = view.history.length - 1; index >= 0 && !lastTerm; index -= 1) {
+    const event = view.history[index].events.find((candidate) => candidate.type === 'incomeResolved');
+    lastTerm = event?.players?.[view.own.id] ?? null;
+  }
+
+  return {
+    forecastYear,
+    termIncome: roundMoney(termIncome),
+    termExpenses: roundMoney(termExpenses),
+    termBalance: roundMoney(termIncome - termExpenses),
+    annualSupport: roundMoney(annualSupport),
+    departmentExpenses,
+    programExpenses,
+    plannedSpend: staged?.committedSpend ?? 0,
+    plannedRecovery: staged?.saleRecovery ?? 0,
+    lastTerm,
   };
 }
 
@@ -495,7 +567,7 @@ export function createSoloController({ session: initialSession, content, onTrans
       next[slot] = structuredClone(action);
       const staged = next.filter(Boolean);
       if (new Set(staged.map((candidate) => candidate.type)).size !== staged.length) {
-        throw new TypeError(`duplicate ${action.type} action`);
+        throw new TypeError(`Only one ${action.type} action is allowed per term. Replace the existing action or choose a different type.`);
       }
       const spend = staged.reduce((total, candidate) => total + actionOption(legal, candidate).cost, 0);
       if (spend > humanPlayer().treasury + 1e-9) throw new TypeError('staged actions exceed the available treasury');

@@ -12,6 +12,18 @@ import {
 
 const content = loadContent();
 
+test('headline presentation keeps the exact rule details shown to the player', () => {
+  const records = presentationRecords([
+    { type: 'headlineRevealed', cardId: 'H03' },
+  ], { humanId: 'human', content });
+
+  assert.deepEqual(records.queue[0].effects, [{
+    type: 'departmentUpkeepMultiplier',
+    department: 'administration',
+    value: 1.5,
+  }]);
+});
+
 test('player card presentation explains scaling and skipped riders without mutating events', () => {
   const events = [{
     type: 'cardResolved',

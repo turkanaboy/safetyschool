@@ -57,52 +57,43 @@
           </div>
           <output class="campus-condition" id="campus-condition">Early momentum</output>
 
-          <div class="campus-map">
-            <div class="campus-landmarks" aria-label="Campus landmarks">
-              <span class="landmark landmark--clock"><i aria-hidden="true"></i><small>Founders Clock</small></span>
-              <span class="landmark landmark--union"><i aria-hidden="true"></i><small>Student Union</small></span>
-            </div>
-            <div class="quad" aria-label="Founders Quad">
-              <span class="quad__path quad__path--horizontal"></span>
-              <span class="quad__path quad__path--vertical"></span>
-              <span class="quad__fountain" aria-hidden="true"><i></i><i></i><i></i></span>
-              <span class="quad__label">Founders Quad</span>
-            </div>
+          <div class="campus-map" data-quad-runtime>
+            <img class="campus-map__base" data-runtime-board alt="">
+            <span class="quad__fountain" aria-hidden="true"><img data-runtime-fountain alt=""></span>
 
             <button class="building building--academics" type="button" data-department="academics" data-level="3" aria-label="Academics, Level 3">
-              <span class="building__model" aria-hidden="true"><img src="/assets/kenney/academics.png" alt=""></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="building__model" aria-hidden="true"><img data-runtime-building alt=""></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
               <span class="building__caption"><strong>Academics</strong><span>Level <b>3</b></span></span>
             </button>
             <button class="building building--student-affairs" type="button" data-department="studentAffairs" data-level="1" aria-label="Student Affairs, Level 1">
-              <span class="building__model" aria-hidden="true"><img src="/assets/kenney/student-affairs.png" alt=""></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="building__model" aria-hidden="true"><img data-runtime-building alt=""></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
               <span class="building__caption"><strong>Student Affairs</strong><span>Level <b>1</b></span></span>
             </button>
             <button class="building building--athletics" type="button" data-department="athletics" data-level="1" aria-label="Athletics, Level 1">
-              <span class="building__model" aria-hidden="true"><img src="/assets/kenney/athletics.png" alt=""></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="building__model" aria-hidden="true"><img data-runtime-building alt=""></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
               <span class="building__caption"><strong>Athletics</strong><span>Level <b>1</b></span></span>
             </button>
             <button class="building building--admissions" type="button" data-department="admissions" data-level="1" aria-label="Admissions, Level 1">
-              <span class="building__model" aria-hidden="true"><img src="/assets/kenney/admissions.png" alt=""></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="building__model" aria-hidden="true"><img data-runtime-building alt=""></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
               <span class="building__caption"><strong>Admissions</strong><span>Level <b>1</b></span></span>
             </button>
             <button class="building building--marketing" type="button" data-department="marketing" data-level="1" aria-label="Marketing, Level 1">
-              <span class="building__model" aria-hidden="true"><img src="/assets/kenney/marketing.png" alt=""></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="building__model" aria-hidden="true"><img data-runtime-building alt=""></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
               <span class="building__caption"><strong>Marketing</strong><span>Level <b>1</b></span></span>
             </button>
             <button class="building building--administration" type="button" data-department="administration" data-level="1" aria-label="Administration, Level 1">
-              <span class="building__model" aria-hidden="true"><img src="/assets/kenney/administration.png" alt=""></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="building__model" aria-hidden="true"><img data-runtime-building alt=""></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
               <span class="building__caption"><strong>Administration</strong><span>Level <b>1</b></span></span>
             </button>
 
             <div class="campus-life" aria-hidden="true">
-              <i class="person person--walker" style="--x:35%;--y:50%;--delay:-1s"></i><i class="person person--walker" style="--x:43%;--y:57%;--delay:-4s"></i>
-              <i class="person person--runner" style="--x:53%;--y:48%;--delay:-8s"></i><i class="person person--walker" style="--x:60%;--y:60%;--delay:-2s"></i>
-              <i class="person person--seated" style="--x:48%;--y:69%;--delay:-6s"></i><i class="person person--walker" style="--x:67%;--y:46%;--delay:-10s"></i>
-              <i class="person person--frisbee" style="--x:30%;--y:63%;--delay:-7s"></i><i class="person person--frisbee" style="--x:57%;--y:71%;--delay:-3s"></i>
-              <i class="person person--runner" style="--x:72%;--y:58%;--delay:-5s"></i><i class="person person--walker" style="--x:39%;--y:73%;--delay:-9s"></i>
+              <i class="person person--walker" data-board-x="650" data-board-y="480" style="--delay:-1s"></i><i class="person person--walker person--northwest" data-board-x="720" data-board-y="560" style="--delay:-4s"></i>
+              <i class="person person--runner" data-board-x="850" data-board-y="460" style="--delay:-8s"></i><i class="person person--walker" data-board-x="910" data-board-y="610" style="--delay:-2s"></i>
+              <i class="person person--seated" data-board-x="760" data-board-y="650"></i><i class="person person--walker person--northwest" data-board-x="970" data-board-y="500" style="--delay:-10s"></i>
+              <i class="person person--frisbee" data-board-x="620" data-board-y="625" style="--delay:-7s"></i><i class="person person--frisbee" data-board-x="865" data-board-y="660" style="--delay:-3s"></i>
+              <i class="person person--runner" data-board-x="1050" data-board-y="585" style="--delay:-5s"></i><i class="person person--walker" data-board-x="690" data-board-y="710" style="--delay:-9s"></i>
               <b class="frisbee" aria-hidden="true"></b>
             </div>
-            <div class="campus-trees" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
             <div class="campus-ambience" aria-hidden="true"><i class="bird bird--one"></i><i class="bird bird--two"></i><i class="campus-flag"></i></div>
             <div class="protest" aria-hidden="true"><i></i><i></i><i></i><i></i><span>Fund students, not slogans</span></div>
             <div class="maintenance-cue" aria-hidden="true"><i></i><i></i><i></i><span>Deferred maintenance</span></div>
@@ -111,24 +102,9 @@
         </div>
       </section>
 
-      <aside class="activity" aria-labelledby="activity-heading">
-        <div id="inspector-content">
-          <p class="eyebrow">Campus management</p>
-          <h2 id="activity-heading">Academics</h2>
-          <p class="atmosphere-note">Select a building to review its current effect and next investment.</p>
-        </div>
-        <h3>Recent activity</h3>
-        <ol id="activity-feed" aria-live="polite">
-          <li>Preparing the quad…</li>
-        </ol>
-      </aside>
     </main>
 
-    <section class="management" aria-label="Campus management">
-      <button class="tray-handle" type="button" aria-expanded="false" aria-controls="management-tray">
-        <span>Management desk</span>
-        <span aria-hidden="true">⌃</span>
-      </button>
+    <section class="management" aria-label="Campus command bar">
       <div class="management__summary" aria-label="Key resources">
         <span><small>Treasury</small> <b id="treasury-value">$24m</b></span>
         <span><small>Students</small> <b id="students-value">8,400</b></span>
@@ -137,12 +113,16 @@
       </div>
       <nav class="management__actions" id="tray-navigation" aria-label="Management sections">
         <button type="button" data-management-section="briefing" aria-pressed="true">Briefing</button>
-        <button type="button" data-management-section="allocate" aria-pressed="false">Allocate</button>
+        <button type="button" data-management-section="allocate" aria-pressed="false">Actions</button>
         <button type="button" data-management-section="programs" aria-pressed="false">Programs</button>
         <button type="button" data-management-section="rivals" aria-pressed="false">Rivals</button>
         <button type="button" data-management-section="boardBook" aria-pressed="false">Board Book</button>
       </nav>
       <div class="management__tray" id="management-tray" aria-hidden="true" inert>
+        <button class="tray-handle" type="button" aria-expanded="false" aria-controls="management-tray">
+          <span>Management desk</span>
+          <span aria-hidden="true">&uarr;</span>
+        </button>
         <div id="tray-content" class="tray-content">
           <div class="tray-copy">
             <p class="eyebrow">President's desk</p>

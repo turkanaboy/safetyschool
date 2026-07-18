@@ -111,7 +111,7 @@ export function presentationRecords(events, { humanId, content }) {
         cardId: card.id,
         title: card.name,
         flavor: card.flavor,
-        effects: card.effects.map((effect) => ({ type: effect.type, value: effect.value ?? null })),
+        effects: structuredClone(card.effects),
       });
     } else if (event.type === 'cardResolved' && event.playerId === humanId) {
       queue.push(explainCard(event, content, 'playerCard'));

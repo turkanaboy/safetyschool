@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "image": "student-actions-atlas.png",
+  "canonicalPayload": "atlas",
+  "frameWidth": 320,
+  "frameHeight": 320,
+  "columns": 4,
+  "rows": 4,
+  "safeGutter": 16,
+  "frames": [
+    { "name": "walk-ne-01", "rect": [0, 0, 320, 320], "contentBounds": [85, 29, 150, 275], "pivot": [160, 304] },
+    { "name": "walk-ne-02", "rect": [320, 0, 320, 320], "contentBounds": [87, 31, 147, 273], "pivot": [160, 304] },
+    { "name": "walk-ne-03", "rect": [640, 0, 320, 320], "contentBounds": [85, 28, 151, 276], "pivot": [160, 304] },
+    { "name": "walk-ne-04", "rect": [960, 0, 320, 320], "contentBounds": [80, 31, 160, 273], "pivot": [160, 304] },
+    { "name": "walk-nw-01", "rect": [0, 320, 320, 320], "contentBounds": [86, 23, 149, 281], "pivot": [160, 304] },
+    { "name": "walk-nw-02", "rect": [320, 320, 320, 320], "contentBounds": [89, 33, 143, 271], "pivot": [160, 304] },
+    { "name": "walk-nw-03", "rect": [640, 320, 320, 320], "contentBounds": [78, 22, 164, 282], "pivot": [160, 304] },
+    { "name": "walk-nw-04", "rect": [960, 320, 320, 320], "contentBounds": [87, 21, 146, 283], "pivot": [160, 304] },
+    { "name": "jog-ne-01", "rect": [0, 640, 320, 320], "contentBounds": [81, 49, 158, 255], "pivot": [160, 304] },
+    { "name": "jog-ne-02", "rect": [320, 640, 320, 320], "contentBounds": [74, 51, 172, 253], "pivot": [160, 304] },
+    { "name": "jog-ne-03", "rect": [640, 640, 320, 320], "contentBounds": [82, 52, 156, 252], "pivot": [160, 304] },
+    { "name": "jog-ne-04", "rect": [960, 640, 320, 320], "contentBounds": [88, 60, 144, 244], "pivot": [160, 304] },
+    { "name": "idle-01", "rect": [0, 960, 320, 320], "contentBounds": [103, 16, 115, 288], "pivot": [160, 304] },
+    { "name": "read-sit-01", "rect": [320, 960, 320, 320], "contentBounds": [62, 80, 196, 224], "pivot": [160, 304] },
+    { "name": "frisbee-windup-01", "rect": [640, 960, 320, 320], "contentBounds": [55, 25, 210, 279], "pivot": [160, 304] },
+    { "name": "frisbee-release-01", "rect": [960, 960, 320, 320], "contentBounds": [23, 31, 274, 273], "pivot": [160, 304] }
+  ],
+  "animations": {
+    "walk-ne": { "frames": ["walk-ne-01", "walk-ne-02", "walk-ne-03", "walk-ne-04"], "fps": 8, "loop": true },
+    "walk-nw": { "frames": ["walk-nw-01", "walk-nw-02", "walk-nw-03", "walk-nw-04"], "fps": 8, "loop": true },
+    "jog-ne": { "frames": ["jog-ne-01", "jog-ne-02", "jog-ne-03", "jog-ne-04"], "fps": 10, "loop": true },
+    "idle": { "frames": ["idle-01"], "fps": 1, "loop": true },
+    "read-sit": { "frames": ["read-sit-01"], "fps": 1, "loop": true },
+    "frisbee-throw": { "frames": ["frisbee-windup-01", "frisbee-release-01"], "fps": 5, "loop": false }
+  }
+}
