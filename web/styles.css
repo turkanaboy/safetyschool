@@ -813,6 +813,7 @@ dialog p { color: #617069; line-height: 1.5; }
 .disruption-brief--private { background: #393452; }
 .special-issue { display: inline-block; justify-self: start; padding: 5px 8px; margin: 0 !important; border: 2px solid #b13d31; color: #8f2c23 !important; font-size: .64rem; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; transform: rotate(-1deg); }
 .ceremony--final h3 { margin: 0; color: #17392e; font: 700 1.6rem Georgia, serif; }
+.final-score-list li { display: flex; justify-content: space-between; gap: 12px; }
 .book-records { display: grid; grid-template-columns: 1.15fr .9fr .85fr; gap: 12px; min-width: 0; }
 .book-records h3 { margin: 0 0 7px; }
 .record-list { display: grid; gap: 5px; padding: 0; margin: 0; list-style: none; }
@@ -1041,6 +1042,7 @@ body[data-game-state="emergency"] .campus-board { filter: saturate(.72) contrast
 .budget-ledger li strong { color: #263c33; white-space: nowrap; }
 .budget-ledger li strong.is-positive { color: #1f6846; }
 .budget-ledger li strong.is-negative { color: #943f33; }
+.budget-reconciliation { grid-column: 1 / -1; }
 .budget-note { margin: 11px 0 0; color: #68776f; font-size: .67rem; line-height: 1.45; }
 
 @media (max-width: 1100px) {

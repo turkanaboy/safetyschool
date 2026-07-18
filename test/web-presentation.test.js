@@ -114,14 +114,17 @@ test('the final issue follows the engine winner even when DUMP favors another sc
       { playerId: 'human', active: true, students: 4500, reputation: 45, treasuryBand: 'Stable', departments: { academics: 3 }, programs: [], alumni: 1200 },
       { playerId: 'northbridge', active: true, students: 9000, reputation: 80, treasuryBand: 'Flush', departments: { academics: 5 }, programs: ['engineering'], alumni: 2000 },
     ],
+    finalScores: { human: 230, northbridge: 210 },
     history: [{ round: 30, events: [{ type: 'gameFinished', winnerId: 'human', reason: 'year6HealthScore', round: 30 }] }],
   };
-  const issue = finalIssue(view);
+  const issue = finalIssue(view, content);
   const serialized = JSON.stringify(issue);
 
   assert.equal(issue.winnerId, 'human');
   assert.equal(issue.winnerName, 'Founders Green');
-  assert.match(issue.explanation, /engine result/i);
+  assert.match(issue.explanation, /highest Institutional Health Score/i);
+  assert.equal(issue.scoreboard[0].playerId, 'human');
+  assert.equal(issue.scoreboard[0].score, 230);
   assert.equal(serialized.includes('healthScore'), false);
   assert.equal(serialized.includes('treasury":'), false);
   assert.equal(serialized.includes('Flush'), false);

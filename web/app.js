@@ -711,6 +711,7 @@ function resumeGame(envelope) {
   renderGame();
   announceTransition(result.events);
   enqueuePresentation(result.presentationEvents, controller.getView().pendingDecision ? '[data-answer-decision]' : '[data-start-round]');
+  if (controller.getView().finished) openFinalIssue();
 }
 
 function openNewGameConfirmation() {
@@ -811,12 +812,14 @@ function annualReportMarkup(view) {
 function finalIssueMarkup(view) {
   const issue = finalIssue(view, content);
   const factors = issue.publicFactors;
+  const scores = issue.scoreboard.map((school) => `<li><span>${school.playerId === issue.winnerId ? '<b>WINNER</b> ' : ''}${escapeHtml(school.name)}${school.playerId === view.own.id ? ' (You)' : ''}</span><strong>${school.score.toFixed(1)}</strong></li>`).join('');
   return `<div class="ceremony ceremony--final">
     <p class="special-issue">DUMP Rankings Special Issue</p>
     <p class="eyebrow">Definitive Ultimate Marketing Ploy</p>
-    <h3>${escapeHtml(issue.winnerName)} wins</h3>
+    <h3>${issue.winnerId === view.own.id ? 'You win' : `${escapeHtml(issue.winnerName)} wins`}</h3>
     <p>${escapeHtml(issue.explanation)}</p>
-    ${factors ? `<div class="report-grid"><span><small>Students</small><strong>${formatNumber(factors.students)}</strong></span><span><small>Reputation</small><strong>${formatNumber(factors.reputation)}</strong></span><span><small>Department levels</small><strong>${factors.departmentLevels}</strong></span><span><small>Programs</small><strong>${factors.programs}</strong></span><span><small>Alumni</small><strong>${formatNumber(factors.alumni)}</strong></span><span><small>Treasury</small><strong>${escapeHtml(factors.treasuryBand)}</strong></span></div>` : ''}
+    ${scores ? `<section><h4>Final Institutional Health Scores</h4><ol class="history-list final-score-list">${scores}</ol></section>` : ''}
+    ${factors ? `<div class="report-grid"><span><small>Students</small><strong>${formatNumber(factors.students)}</strong></span><span><small>Reputation</small><strong>${formatNumber(factors.reputation)}</strong></span><span><small>Department levels</small><strong>${factors.departmentLevels}</strong></span><span><small>Programs</small><strong>${factors.programs}</strong></span><span><small>Alumni</small><strong>${formatNumber(factors.alumni)}</strong></span><span><small>Treasury</small><strong>${Number.isFinite(factors.treasury) ? formatMoney(factors.treasury) : escapeHtml(factors.treasuryBand)}</strong></span></div>` : ''}
     ${issue.turningPoints.length ? `<section><h4>Turning points</h4><ol class="history-list">${issue.turningPoints.map((point) => `<li>${escapeHtml(point)}</li>`).join('')}</ol></section>` : ''}
   </div>`;
 }
@@ -869,13 +872,22 @@ function enqueuePresentation(events, returnSelector = null) {
   showNextPresentation();
 }
 
+function openFinalIssue(returnSelector = '.tray-handle') {
+  if (!controller?.getView().finished) return;
+  presentationReturnSelector = returnSelector;
+  if (!currentPresentation && !presentationQueue.some((record) => record.kind === 'finalIssue')) {
+    presentationQueue.push({ kind: 'finalIssue' });
+  }
+  showNextPresentation();
+}
+
 function completePresentation(skipRemaining = false) {
   if (!currentPresentation) return;
   const kind = currentPresentation.kind;
   const view = controller.getView();
   if (currentPresentation.kind === 'playerCard' && !view.tutorial.cardDismissed) controller.dismissTutorial('card');
   if (currentPresentation.kind === 'annualReport' && !view.tutorial.reportDismissed) controller.dismissTutorial('report');
-  if (skipRemaining) presentationQueue = [];
+  if (skipRemaining) presentationQueue = presentationQueue.filter((record) => record.kind === 'finalIssue');
   currentPresentation = null;
   if (kind === 'headline') {
     activeSection = 'allocate';
@@ -950,6 +962,11 @@ function openBuildingReference(department, trigger) {
 }
 
 function renderBriefing(view) {
+  if (view.finished) {
+    const issue = finalIssue(view, content);
+    const score = issue.scoreboard.find((school) => school.playerId === issue.winnerId)?.score;
+    return `<div class="tray-layout"><div class="tray-copy"><p class="eyebrow">President's desk &middot; final record</p><h2>Game complete</h2><p>${escapeHtml(issue.explanation)}</p><div class="button-row"><button class="primary-button" type="button" data-open-final-issue>View final results</button><button class="secondary-button" type="button" data-request-new-game>Start a new game</button></div></div><div class="briefing-dashboard"><section class="budget-panel"><p class="eyebrow">Official result</p><h3>${issue.winnerId === view.own.id ? 'Your campus won' : `${escapeHtml(issue.winnerName)} won`}</h3>${Number.isFinite(score) ? `<p class="budget-note">Winning Institutional Health Score: <strong>${score.toFixed(1)}</strong></p>` : ''}</section></div></div>`;
+  }
   const capacity = view.own.departments.academics * content.config.departments.academics.studentCapacityPerLevel;
   const budget = operatingBudget(view, content);
   const budgetScale = Math.max(1, budget.termIncome, budget.termExpenses);
@@ -984,8 +1001,11 @@ function renderBriefing(view) {
   } else if (view.phase === 'allocation') {
     primary = '<button class="primary-button" type="button" data-open-allocation>Choose your actions</button>';
   }
+  const briefing = view.phase === 'ready'
+    ? 'Start the shared term when you are ready. The three rivals are waiting and cannot act until you begin.'
+    : `Headline ${escapeHtml(view.headline ?? 'pending')} has settled. Choose your actions; the three rivals submit only when you confirm your allocation.`;
   return `<div class="tray-layout">
-    <div class="tray-copy"><p class="eyebrow">President's desk &middot; your planning step</p><h2>Briefing</h2><p>${view.phase === 'ready' ? 'Start the shared term when you are ready. The three rivals are waiting and cannot act until you begin.' : `Headline ${escapeHtml(view.headline ?? 'pending')} has settled. Choose your actions; the three rivals submit only when you confirm your allocation.`}</p>${primary}</div>
+    <div class="tray-copy"><p class="eyebrow">President's desk &middot; your planning step</p><h2>Briefing</h2><p>${briefing}</p>${primary}</div>
     <div class="briefing-dashboard">
       <div class="tray-preview briefing-grid">
         <article><small>Position</small><strong>${formatMoney(view.own.treasury)}</strong><span>${view.own.paidUpkeepThisRound ? `${formatMoney(view.own.paidUpkeepThisRound)} upkeep paid` : 'Preseason treasury'}</span></article>
@@ -1002,8 +1022,9 @@ function renderBriefing(view) {
         <div class="budget-ledger">
           <section><h4>Year-end-only income</h4><ul><li><span>Estimated alumni donations</span><strong>${formatMoney(budget.annualDonations)}</strong></li><li><span>Estimated state grants</span><strong>${formatMoney(budget.annualGrants)}</strong></li></ul>${budget.plannedRecovery ? `<h4>Staged one-time income</h4><ul><li><span>Planned sale recovery</span><strong class="is-positive">${formatMoney(budget.plannedRecovery)}</strong></li></ul>` : ''}</section>
           <section><h4>Recurring spending</h4><ul>${recurringExpenses.map((item) => `<li><span>${escapeHtml(item.label)}</span><strong>${formatMoney(item.value)}</strong></li>`).join('')}${budget.plannedSpend ? `<li><span>Planned one-time actions</span><strong class="is-negative">${formatMoney(budget.plannedSpend)}</strong></li>` : ''}</ul></section>
+          <section class="budget-reconciliation"><h4>Annualized reconciliation</h4><ul><li><span>Recurring margin across ${content.config.gameLength.roundsPerYear} terms at current run-rate</span><strong class="${budget.annualOperatingMargin < 0 ? 'is-negative' : 'is-positive'}">${formatMoney(budget.annualOperatingMargin, true)}</strong></li><li><span>Year-end donations &amp; grants</span><strong class="is-positive">${formatMoney(budget.annualSupport, true)}</strong></li><li><span>Projected annual result</span><strong class="${budget.annualResult < 0 ? 'is-negative' : 'is-positive'}">${formatMoney(budget.annualResult, true)}</strong></li></ul></section>
         </div>
-        <p class="budget-note"><strong>Previous term — already settled:</strong> ${escapeHtml(actual)}<br>Tuition is collected each term; donations and grants arrive only at year end. The forecast includes known disruption, cost disease, Administration savings, and staged actions; the next Headline is not predictable.</p>
+        <p class="budget-note"><strong>Previous term — already settled:</strong> ${escapeHtml(actual)}<br>Tuition is collected each term; donations and grants arrive only at year end. The annualized result holds current enrollment and alumni constant; actual donations resolve after graduation. Forecasts include known disruption, cost disease, Administration savings, and staged actions; the next Headline is not predictable.</p>
       </section>
     </div>${decision}</div>`;
 }
@@ -1103,7 +1124,7 @@ function renderBoardBook(view) {
     return `<li><span><small>Round ${trend.round} public standing</small><strong>DUMP ${trend.ownRank ? `#${trend.ownRank}` : 'unranked'} &middot; ${formatNumber(trend.students ?? 0)} students</strong></span><b>${movement > 0 ? `&uarr;${movement}` : movement < 0 ? `&darr;${Math.abs(movement)}` : '&mdash;'}</b></li>`;
   }).join('');
   return `<div class="board-book-layout">
-    <section><p class="eyebrow">Permanent reference</p><h2>Board Book</h2><div class="help-card"><strong>How a term works</strong><p>Begin the shared term, review income and warnings, then commit up to two different action types. Rivals submit simultaneously only after you confirm. Cards and recruiting then resolve automatically.</p></div><div class="help-card"><strong>How cards work</strong><p>Fortune means an advantage; Crisis means a setback. Each card applies to the campus named on it. The targeted department sets the factor, and Administration may reduce Crisis severity.</p></div><div class="help-card"><strong>What DUMP means</strong><p>Definitive Ultimate Marketing Ploy rankings use published students, reputation, departments, Programs, and alumni. Treasury is excluded and DUMP never changes the rules.</p></div><button class="danger-link" type="button" data-request-new-game>Start a different game</button></section>
+    <section><p class="eyebrow">Permanent reference</p><h2>Board Book</h2><div class="help-card"><strong>How a term works</strong><p>Begin the shared term, review income and warnings, then commit up to two different action types. Rivals submit simultaneously only after you confirm. Cards and recruiting then resolve automatically.</p></div><div class="help-card"><strong>How cards work</strong><p>Fortune means an advantage; Crisis means a setback. Each card applies to the campus named on it. The targeted department sets the factor, and Administration may reduce Crisis severity.</p></div><div class="help-card"><strong>What DUMP means</strong><p>Definitive Ultimate Marketing Ploy rankings use published students, reputation, departments, Programs, and alumni. Treasury is excluded and DUMP never changes the rules.</p></div>${view.finished ? '<button class="primary-button" type="button" data-open-final-issue>View final results</button>' : ''}<button class="danger-link" type="button" data-request-new-game>Start a different game</button></section>
     <section class="book-records"><div><h3>Cards</h3><p class="record-hint">Select a card for who it applied to and what it meant. Your cards include exact math; rival cards show public facts.</p><ol class="record-list record-list--interactive">${cards || '<li>No cards recorded yet.</li>'}</ol></div><div><h3>Annual reports</h3><ol class="record-list">${reports || '<li>The first report arrives after Term 5.</li>'}</ol></div><div><h3>DUMP trend</h3><ol class="record-list">${trends || '<li>No published ranking yet.</li>'}</ol></div></section>
   </div>`;
 }
@@ -1230,6 +1251,7 @@ function handleClick(event) {
       else if (loaded.status === 'invalid') showInvalidSave(loaded);
       else openSetup('No resumable game was found.');
     } else if (button.matches('[data-request-new-game]')) openNewGameConfirmation();
+    else if (button.matches('[data-open-final-issue]')) openFinalIssue('[data-open-final-issue]');
     else if (button.matches('[data-continue-presentation]')) completePresentation();
     else if (button.matches('[data-skip-presentations]')) completePresentation(true);
     else if (button.matches('[data-close-dialog]')) dialog.close();
@@ -1334,9 +1356,7 @@ function handleClick(event) {
       controller.skipRemaining();
       renderGame();
       announcer.textContent = `${schoolName(controller.getView(), controller.getView().winnerId)} won the game. Final issue ready.`;
-      presentationReturnSelector = '.tray-handle';
-      presentationQueue.push({ kind: 'finalIssue' });
-      showNextPresentation();
+      openFinalIssue();
     }
   } catch (error) {
     uiMessage = error.message;

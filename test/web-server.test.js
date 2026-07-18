@@ -116,6 +116,7 @@ test('campus gameplay shell keeps the approved board and exposes the five manage
     assert.match(app.body, /Next-term operating forecast/);
     assert.match(app.body, /Previous term — already settled/);
     assert.match(app.body, /Year-end-only income/);
+    assert.match(app.body, /data-open-final-issue/);
   });
 });
 

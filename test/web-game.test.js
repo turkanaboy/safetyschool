@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { canonicalStringify } from '../engine/content.js';
 import { loadContent } from '../engine/content-node.js';
-import { canonicalStateBytes } from '../engine/index.js';
+import { canonicalStateBytes, healthScore } from '../engine/index.js';
 import {
   RIVAL_SCHOOLS,
   createSoloController,
@@ -131,6 +131,13 @@ test('observations and compact history do not expose raw rival state or snapshot
   assert.equal(safeText.includes('D01'), false);
   assert.equal(safeText.includes('playerIds'), false);
   assert.equal(safeText.includes('D02'), true);
+
+  session.state.finished = true;
+  session.state.phase = 'complete';
+  session.mode = 'complete';
+  const finalView = createSoloController({ session, content }).getView();
+  assert.equal(finalView.finalScores.human, healthScore(session.state.players.find((player) => player.id === 'human'), content.config));
+  assert.equal(finalView.finalScores[rivalIds[0]], healthScore(session.state.players.find((player) => player.id === rivalIds[0]), content.config));
 });
 
 test('AI-owned decisions settle automatically while human-owned decisions pause and resume exactly', () => {

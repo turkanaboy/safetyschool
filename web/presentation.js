@@ -247,9 +247,9 @@ export function boardBook(view, content) {
   };
 }
 
-function finalEvent(view) {
+function lastEvent(view, type) {
   for (const entry of [...view.history].reverse()) {
-    const event = [...entry.events].reverse().find((candidate) => candidate.type === 'gameFinished');
+    const event = [...entry.events].reverse().find((candidate) => candidate.type === type);
     if (event) return event;
   }
   return null;
@@ -271,28 +271,47 @@ function turningPoint(event, winnerId, content) {
 }
 
 export function finalIssue(view, content = null) {
-  const event = finalEvent(view);
+  const event = lastEvent(view, 'gameFinished');
+  const scores = view.finalScores ?? lastEvent(view, 'healthScoresComputed')?.scores ?? {};
   const winnerId = view.winnerId ?? event?.winnerId;
   const schools = [view.own, ...view.opponents];
-  const winnerName = schools.find((school) => school.id === winnerId)?.name ?? winnerId;
+  const winner = schools.find((school) => school.id === winnerId);
+  const winnerName = winner?.name ?? winnerId;
   const standing = view.standings?.find((candidate) => candidate.playerId === winnerId);
+  const factors = winner?.departments ? winner : standing;
   const turningPoints = view.history.flatMap((entry) => entry.events)
     .map((event) => turningPoint(event, winnerId, content))
     .filter(Boolean).slice(-3);
+  const scoreboard = schools.filter((school) => Number.isFinite(scores[school.id])).map((school) => ({
+    playerId: school.id,
+    name: school.name,
+    score: scores[school.id],
+  })).sort((a, b) => Number(b.playerId === winnerId) - Number(a.playerId === winnerId) || b.score - a.score);
+  const winningScore = scores[winnerId];
+  const tiedScore = Number.isFinite(winningScore) && Object.values(scores).filter((score) => score === winningScore).length > 1;
+  const explanation = event?.reason === 'soleSurvivor'
+    ? `${winnerName} was the only university still operating.`
+    : event?.reason === 'simultaneousElimination'
+      ? `${winnerName} had the strongest Institutional Health Score when the remaining campuses closed together.`
+      : Number.isFinite(winningScore)
+        ? `${winnerName} finished Year 6 with ${tiedScore ? 'a tied-highest' : 'the highest'} Institutional Health Score: ${winningScore.toFixed(1)}.${tiedScore ? ' The tiebreak considers students, then alumni, then turn priority.' : ''} The score combines treasury, students, reputation, department development, Programs, and alumni.`
+        : `${winnerName} won by the engine's final result. DUMP remains a marketing ranking, not the victory rule.`;
   return {
     kind: 'finalIssue',
     winnerId,
     winnerName,
     reason: event?.reason ?? 'complete',
-    explanation: 'The engine result decides the winner; DUMP remains a public marketing ranking, not a victory rule.',
+    explanation,
+    scoreboard,
     turningPoints,
-    publicFactors: standing ? {
-      students: standing.students,
-      reputation: standing.reputation,
-      departmentLevels: Object.values(standing.departments).reduce((total, level) => total + level, 0),
-      programs: standing.programs.length,
-      alumni: standing.alumni,
-      treasuryBand: standing.treasuryBand,
+    publicFactors: factors ? {
+      students: factors.students,
+      reputation: factors.reputation,
+      departmentLevels: Object.values(factors.departments).reduce((total, level) => total + level, 0),
+      programs: factors.programs.length,
+      alumni: factors.alumni,
+      ...(Number.isFinite(winner?.treasury) ? { treasury: winner.treasury } : {}),
+      treasuryBand: winner?.treasuryBand ?? standing?.treasuryBand ?? 'See campus treasury',
     } : null,
   };
 }

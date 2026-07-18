@@ -1,6 +1,6 @@
 import { createAgent } from '../agents/index.js';
 import { canonicalStringify, DEPARTMENTS } from '../engine/content.js';
-import { advanceGame, createGame, legalActions, observeGame, roundMoney } from '../engine/index.js';
+import { advanceGame, createGame, healthScore, legalActions, observeGame, roundMoney } from '../engine/index.js';
 import { deriveSeed } from '../engine/rng.js';
 
 export const RIVAL_SCHOOLS = Object.freeze([
@@ -267,6 +267,8 @@ export function operatingBudget(view, content) {
   const annualDonations = view.own.alumni * donationPerAlum
     * (view.own.effects.donationMultiplierThisYearEnd ?? 1)
     * effectProduct(disruption, 'donationMultiplier');
+  const annualOperatingMargin = (termIncome - termExpenses) * config.gameLength.roundsPerYear;
+  const annualResult = annualOperatingMargin + annualDonations + grants;
   const staged = view.legal?.kind === 'allocation' ? allocationSummary(view, content) : null;
 
   let lastTerm = null;
@@ -283,6 +285,8 @@ export function operatingBudget(view, content) {
     annualDonations: roundMoney(annualDonations),
     annualGrants: roundMoney(grants),
     annualSupport: roundMoney(annualDonations + grants),
+    annualOperatingMargin: roundMoney(annualOperatingMargin),
+    annualResult: roundMoney(annualResult),
     departmentExpenses,
     programExpenses,
     plannedSpend: staged?.committedSpend ?? 0,
@@ -546,6 +550,7 @@ export function createSoloController({ session: initialSession, content, onTrans
       identity: structuredClone(session.human),
       lineup: session.rivals.map(({ agentSeed: _agentSeed, ...rival }) => structuredClone(rival)),
       standings: session.state.standings ? structuredClone(session.state.standings) : null,
+      finalScores: session.state.finished ? Object.fromEntries(session.state.players.map((player) => [player.id, healthScore(player, content.config)])) : null,
       history: structuredClone(session.history),
       tutorial: structuredClone(session.tutorial),
     };
