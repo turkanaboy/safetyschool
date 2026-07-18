@@ -92,6 +92,7 @@ test('play server reports a fixed-origin port conflict instead of falling throug
 test('campus gameplay shell keeps the approved board and exposes the five management destinations', async () => {
   await withServer(async (port) => {
     const shell = await fetchFrom(port, '/');
+    const app = await fetchFrom(port, '/app.js');
     for (const department of ['admissions', 'marketing', 'academics', 'studentAffairs', 'athletics', 'administration']) {
       assert.match(shell.body, new RegExp(`data-department="${department}"`));
     }
@@ -111,6 +112,8 @@ test('campus gameplay shell keeps the approved board and exposes the five manage
     assert.match(shell.body, /id="setup-panel"/);
     assert.match(shell.body, /id="game-announcer"[^>]+aria-live="polite"/);
     assert.match(shell.body, /class="protest"/);
+    assert.match(app.body, /button\.disabled = emergency && !emergencyShortcut/);
+    assert.match(app.body, /Estimated alumni donations/);
   });
 });
 

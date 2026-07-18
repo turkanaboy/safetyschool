@@ -1000,7 +1000,7 @@ function renderBriefing(view) {
           <div class="is-expense"><span>Upkeep</span><i style="--budget-width:${budget.termExpenses / budgetScale * 100}%"></i><strong>${formatMoney(budget.termExpenses)}</strong></div>
         </div>
         <div class="budget-ledger">
-          <section><h4>Income</h4><ul><li><span>Tuition per term</span><strong>${formatMoney(budget.termIncome)}</strong></li><li><span>Estimated year-end donations &amp; grants</span><strong>${formatMoney(budget.annualSupport)}</strong></li>${budget.plannedRecovery ? `<li><span>Planned one-time sale recovery</span><strong class="is-positive">${formatMoney(budget.plannedRecovery)}</strong></li>` : ''}</ul></section>
+          <section><h4>Income</h4><ul><li><span>Tuition per term</span><strong>${formatMoney(budget.termIncome)}</strong></li><li><span>Estimated alumni donations (year-end)</span><strong>${formatMoney(budget.annualDonations)}</strong></li><li><span>Estimated state grants (year-end)</span><strong>${formatMoney(budget.annualGrants)}</strong></li>${budget.plannedRecovery ? `<li><span>Planned one-time sale recovery</span><strong class="is-positive">${formatMoney(budget.plannedRecovery)}</strong></li>` : ''}</ul></section>
           <section><h4>Recurring spending</h4><ul>${recurringExpenses.map((item) => `<li><span>${escapeHtml(item.label)}</span><strong>${formatMoney(item.value)}</strong></li>`).join('')}${budget.plannedSpend ? `<li><span>Planned one-time actions</span><strong class="is-negative">${formatMoney(budget.plannedSpend)}</strong></li>` : ''}</ul></section>
         </div>
         <p class="budget-note">${escapeHtml(actual)} Forecast includes known disruption, cost disease, Administration savings, and staged actions; the next Headline is not predictable.</p>
@@ -1126,8 +1126,10 @@ function openCardReference(index, trigger) {
 function renderTray(view) {
   const emergency = view.pendingDecision?.type === 'forcedSale';
   document.querySelectorAll('[data-management-section]').forEach((button) => {
+    const emergencyShortcut = button.dataset.managementSection === 'briefing';
+    if (emergencyShortcut) button.textContent = emergency ? 'Emergency Board Meeting' : 'Briefing';
     button.setAttribute('aria-pressed', String(button.dataset.managementSection === activeSection));
-    button.disabled = emergency;
+    button.disabled = emergency && !emergencyShortcut;
   });
   if (emergency) trayContent.innerHTML = renderEmergency(view);
   else if (activeSection === 'allocate') trayContent.innerHTML = renderAllocation(view);

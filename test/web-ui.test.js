@@ -124,6 +124,8 @@ test('operating budget explains recurring income and department spending without
     marketing: 1,
     studentAffairs: 1,
   });
+  assert.equal(budget.annualDonations, 6);
+  assert.equal(budget.annualGrants, 0);
   assert.equal(budget.annualSupport, 6);
   assert.equal(JSON.stringify(game.getSession().state), stateBefore);
 });

@@ -844,7 +844,6 @@ dialog p { color: #617069; line-height: 1.5; }
 .emergency-options b { color: #8d362b; font-size: .64rem; }
 .emergency-options small { margin-top: 3px; color: #6a766f; font-size: .54rem; }
 body[data-game-state="emergency"] .campus-board { filter: saturate(.72) contrast(.98); }
-body[data-game-state="emergency"] .management__summary::before { content: "Emergency meeting"; color: #ffd2c4; font-size: .56rem; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; }
 .management__actions button:disabled { cursor: not-allowed; opacity: .46; }
 
 @keyframes ceremony-enter {

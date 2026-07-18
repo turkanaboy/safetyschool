@@ -264,9 +264,9 @@ export function operatingBudget(view, content) {
       * (rider?.donationBonusMultiplier ?? 1);
     grants += (definition.annualStateGrantPerAdminLevel ?? 0) * departments.administration;
   }
-  const annualSupport = view.own.alumni * donationPerAlum
+  const annualDonations = view.own.alumni * donationPerAlum
     * (view.own.effects.donationMultiplierThisYearEnd ?? 1)
-    * effectProduct(disruption, 'donationMultiplier') + grants;
+    * effectProduct(disruption, 'donationMultiplier');
   const staged = view.legal?.kind === 'allocation' ? allocationSummary(view, content) : null;
 
   let lastTerm = null;
@@ -280,7 +280,9 @@ export function operatingBudget(view, content) {
     termIncome: roundMoney(termIncome),
     termExpenses: roundMoney(termExpenses),
     termBalance: roundMoney(termIncome - termExpenses),
-    annualSupport: roundMoney(annualSupport),
+    annualDonations: roundMoney(annualDonations),
+    annualGrants: roundMoney(grants),
+    annualSupport: roundMoney(annualDonations + grants),
     departmentExpenses,
     programExpenses,
     plannedSpend: staged?.committedSpend ?? 0,
