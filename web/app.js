@@ -959,8 +959,8 @@ function renderBriefing(view) {
     ...budget.programExpenses.map((item) => ({ label: titleCase(item.program), value: item.value })),
   ];
   const actual = budget.lastTerm
-    ? `Last term actual: ${formatMoney(budget.lastTerm.tuition)} tuition and ${formatMoney(budget.lastTerm.upkeep)} upkeep.`
-    : 'Preseason forecast; no settled term is available yet.';
+    ? `Tuition ${formatMoney(budget.lastTerm.tuition)}; upkeep ${formatMoney(budget.lastTerm.upkeep)}.`
+    : 'No settled term is available yet.';
   const activeEffects = Object.entries(view.own.effects).filter(([, value]) => value !== 0 && value !== 1 && value !== null && value !== false);
   const warning = view.own.students > capacity
     ? `${formatNumber(view.own.students - capacity)} students above current Academics capacity.`
@@ -994,16 +994,16 @@ function renderBriefing(view) {
         <article><small>Active effects</small><strong>${activeEffects.length}</strong><span>${activeEffects.length ? 'Carrying into play' : 'No temporary modifiers'}</span></article>
       </div>
       <section class="budget-panel" aria-labelledby="budget-title">
-        <header><div><p class="eyebrow">Budget &amp; cash flow</p><h3 id="budget-title">Year ${budget.forecastYear} recurring outlook</h3></div><span class="budget-margin ${budget.termBalance < 0 ? 'is-negative' : 'is-positive'}"><small>Operating margin</small><strong>${formatMoney(budget.termBalance, true)}</strong></span></header>
-        <div class="budget-chart" role="img" aria-label="Projected tuition ${formatMoney(budget.termIncome)} and recurring upkeep ${formatMoney(budget.termExpenses)} per term">
+        <header><div><p class="eyebrow">Budget &amp; cash flow</p><h3 id="budget-title">Next-term operating forecast · Year ${budget.forecastYear}</h3></div><span class="budget-margin ${budget.termBalance < 0 ? 'is-negative' : 'is-positive'}"><small>Projected per-term margin</small><strong>${formatMoney(budget.termBalance, true)}</strong></span></header>
+        <div class="budget-chart" role="img" aria-label="Next-term projected tuition ${formatMoney(budget.termIncome)} and upkeep ${formatMoney(budget.termExpenses)}">
           <div><span>Tuition</span><i style="--budget-width:${budget.termIncome / budgetScale * 100}%"></i><strong>${formatMoney(budget.termIncome)}</strong></div>
           <div class="is-expense"><span>Upkeep</span><i style="--budget-width:${budget.termExpenses / budgetScale * 100}%"></i><strong>${formatMoney(budget.termExpenses)}</strong></div>
         </div>
         <div class="budget-ledger">
-          <section><h4>Income</h4><ul><li><span>Tuition per term</span><strong>${formatMoney(budget.termIncome)}</strong></li><li><span>Estimated alumni donations (year-end)</span><strong>${formatMoney(budget.annualDonations)}</strong></li><li><span>Estimated state grants (year-end)</span><strong>${formatMoney(budget.annualGrants)}</strong></li>${budget.plannedRecovery ? `<li><span>Planned one-time sale recovery</span><strong class="is-positive">${formatMoney(budget.plannedRecovery)}</strong></li>` : ''}</ul></section>
+          <section><h4>Year-end-only income</h4><ul><li><span>Estimated alumni donations</span><strong>${formatMoney(budget.annualDonations)}</strong></li><li><span>Estimated state grants</span><strong>${formatMoney(budget.annualGrants)}</strong></li></ul>${budget.plannedRecovery ? `<h4>Staged one-time income</h4><ul><li><span>Planned sale recovery</span><strong class="is-positive">${formatMoney(budget.plannedRecovery)}</strong></li></ul>` : ''}</section>
           <section><h4>Recurring spending</h4><ul>${recurringExpenses.map((item) => `<li><span>${escapeHtml(item.label)}</span><strong>${formatMoney(item.value)}</strong></li>`).join('')}${budget.plannedSpend ? `<li><span>Planned one-time actions</span><strong class="is-negative">${formatMoney(budget.plannedSpend)}</strong></li>` : ''}</ul></section>
         </div>
-        <p class="budget-note">${escapeHtml(actual)} Forecast includes known disruption, cost disease, Administration savings, and staged actions; the next Headline is not predictable.</p>
+        <p class="budget-note"><strong>Previous term — already settled:</strong> ${escapeHtml(actual)}<br>Tuition is collected each term; donations and grants arrive only at year end. The forecast includes known disruption, cost disease, Administration savings, and staged actions; the next Headline is not predictable.</p>
       </section>
     </div>${decision}</div>`;
 }
