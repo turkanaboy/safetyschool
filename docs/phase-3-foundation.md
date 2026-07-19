@@ -46,8 +46,8 @@ The four public RPCs are intentionally `SECURITY DEFINER` because direct table w
 
 In Supabase Authentication settings:
 
-1. Set the production Site URL to `https://safetyschool.com` after that domain serves the Vercel production deployment.
-2. Add `https://safetyschool.com/online.html` as an allowed redirect URL.
+1. Set the production Site URL to `https://safetyschoolgame.com` after that domain serves the Vercel production deployment.
+2. Add `https://safetyschoolgame.com/online.html` as an allowed redirect URL.
 3. Keep `http://127.0.0.1:4173/online.html` as a local-development redirect.
 4. Add the exact active Vercel preview `/online.html` URL when testing a branch preview.
 5. Configure custom SMTP before inviting players outside the Supabase project team. The built-in email sender is not intended for a public playtest.
@@ -61,7 +61,7 @@ The GitHub-connected Vercel project is `safetyschool`. `vercel.json` runs `npm r
 Before production testing:
 
 1. Confirm a branch preview returns HTTP 200 for `/` and `/online.html`.
-2. Attach `safetyschool.com` to the Vercel project and apply the DNS records Vercel provides.
+2. Attach `safetyschoolgame.com` to the Vercel project and apply the DNS records Vercel provides.
 3. Promote or merge only after the preview passes the browser checks.
 4. Update Supabase Site URL and redirect allow-list entries to the final production URLs.
 
