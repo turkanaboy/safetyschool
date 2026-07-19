@@ -3,7 +3,8 @@ import test from 'node:test';
 
 import { AGENT_TYPES, createAgent } from '../agents/index.js';
 import { advanceGame, createGame, legalActions, observeGame } from '../engine/index.js';
-import { DEPARTMENTS, loadContent } from '../engine/content.js';
+import { DEPARTMENTS } from '../engine/content.js';
+import { loadContent } from '../engine/content-node.js';
 
 const content = loadContent();
 const scripted = AGENT_TYPES.filter((type) => type !== 'random');

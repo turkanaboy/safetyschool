@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#172b24">
+  <link rel="icon" href="data:,">
+  <title>Safety School</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <output class="sr-only" id="game-announcer" aria-live="polite" aria-atomic="true"></output>
+  <div class="game-shell">
+    <header class="topbar">
+      <a class="wordmark" href="/" aria-label="Safety School home">
+        <span class="wordmark__crest" aria-hidden="true">SS</span>
+        <span>Safety School</span>
+      </a>
+      <nav class="rankings" aria-label="DUMP rankings">
+        <span class="rankings__label">
+          <strong><abbr title="Definitive Ultimate Marketing Ploy">DUMP</abbr> Rankings</strong>
+          <small>Definitive Ultimate Marketing Ploy</small>
+        </span>
+        <ol id="rankings-list">
+          <li><span>—</span> Preseason</li>
+        </ol>
+      </nav>
+      <output class="status-chip" id="game-status" aria-live="polite">Loading campus…</output>
+    </header>
+
+    <main class="playing-area" aria-label="Campus board">
+      <section class="board-stage" aria-labelledby="campus-heading">
+        <div class="board-horizon" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div class="rival-spaces" id="rival-spaces" aria-label="Rival campuses">
+          <button class="rival-campus" type="button" data-rival="northbridge" aria-pressed="false">
+            <span class="rival-campus__rank">1</span>
+            <span class="rival-campus__mini" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span><strong>Northbridge</strong><small>Prestige · 52</small></span>
+          </button>
+          <button class="rival-campus" type="button" data-rival="saint-cadmus" aria-pressed="false">
+            <span class="rival-campus__rank">3</span>
+            <span class="rival-campus__mini rival-campus__mini--old" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span><strong>Saint Cadmus</strong><small>Prestige · 41</small></span>
+          </button>
+          <button class="rival-campus" type="button" data-rival="westlake" aria-pressed="false">
+            <span class="rival-campus__rank">4</span>
+            <span class="rival-campus__mini rival-campus__mini--glass" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span><strong>Westlake</strong><small>Prestige · 37</small></span>
+          </button>
+        </div>
+
+        <div class="campus-board">
+          <div class="campus-nameplate">
+            <span class="campus-nameplate__seal" id="campus-seal" aria-hidden="true">FG</span>
+            <span><small id="campus-rank-label">Your campus · Preseason</small><strong id="campus-heading">Founders Green</strong></span>
+          </div>
+          <output class="campus-condition" id="campus-condition">Early momentum</output>
+
+          <div class="campus-map" data-quad-runtime>
+            <img class="campus-map__base" data-runtime-board alt="">
+            <span class="quad__fountain" aria-hidden="true"><img data-runtime-fountain alt=""></span>
+
+            <button class="building building--academics" type="button" data-department="academics" data-level="3" aria-label="Academics, Level 3">
+              <span class="building__model" aria-hidden="true"><img data-runtime-building alt=""></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="building__caption"><strong>Academics</strong><span>Level <b>3</b></span></span>
+            </button>
+            <button class="building building--student-affairs" type="button" data-department="studentAffairs" data-level="1" aria-label="Student Affairs, Level 1">
+              <span class="building__model" aria-hidden="true"><img data-runtime-building alt=""></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="building__caption"><strong>Student Affairs</strong><span>Level <b>1</b></span></span>
+            </button>
+            <button class="building building--athletics" type="button" data-department="athletics" data-level="1" aria-label="Athletics, Level 1">
+              <span class="building__model" aria-hidden="true"><img data-runtime-building alt=""></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="building__caption"><strong>Athletics</strong><span>Level <b>1</b></span></span>
+            </button>
+            <button class="building building--admissions" type="button" data-department="admissions" data-level="1" aria-label="Admissions, Level 1">
+              <span class="building__model" aria-hidden="true"><img data-runtime-building alt=""></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="building__caption"><strong>Admissions</strong><span>Level <b>1</b></span></span>
+            </button>
+            <button class="building building--marketing" type="button" data-department="marketing" data-level="1" aria-label="Marketing, Level 1">
+              <span class="building__model" aria-hidden="true"><img data-runtime-building alt=""></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="building__caption"><strong>Marketing</strong><span>Level <b>1</b></span></span>
+            </button>
+            <button class="building building--administration" type="button" data-department="administration" data-level="1" aria-label="Administration, Level 1">
+              <span class="building__model" aria-hidden="true"><img data-runtime-building alt=""></span><span class="building__dust" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="building__caption"><strong>Administration</strong><span>Level <b>1</b></span></span>
+            </button>
+
+            <div class="campus-life" aria-hidden="true">
+              <i class="person person--walker" data-board-x="650" data-board-y="480" style="--delay:-1s"></i><i class="person person--walker person--northwest" data-board-x="720" data-board-y="560" style="--delay:-4s"></i>
+              <i class="person person--runner" data-board-x="850" data-board-y="460" style="--delay:-8s"></i><i class="person person--walker" data-board-x="910" data-board-y="610" style="--delay:-2s"></i>
+              <i class="person person--seated" data-board-x="760" data-board-y="650"></i><i class="person person--walker person--northwest" data-board-x="970" data-board-y="500" style="--delay:-10s"></i>
+              <i class="person person--frisbee" data-board-x="620" data-board-y="625" style="--delay:-7s"></i><i class="person person--frisbee" data-board-x="865" data-board-y="660" style="--delay:-3s"></i>
+              <i class="person person--runner" data-board-x="1050" data-board-y="585" style="--delay:-5s"></i><i class="person person--walker" data-board-x="690" data-board-y="710" style="--delay:-9s"></i>
+              <b class="frisbee" aria-hidden="true"></b>
+            </div>
+            <div class="campus-ambience" aria-hidden="true"><i class="bird bird--one"></i><i class="bird bird--two"></i><i class="campus-flag"></i></div>
+            <div class="protest" aria-hidden="true"><i></i><i></i><i></i><i></i><span>Fund students, not slogans</span></div>
+            <div class="maintenance-cue" aria-hidden="true"><i></i><i></i><i></i><span>Deferred maintenance</span></div>
+          </div>
+          <div class="campus-board__edge"><span>Founded 1912</span><strong id="campus-edge-name">FOUNDERS GREEN UNIVERSITY</strong><span id="campus-edge-term">Preseason</span></div>
+        </div>
+      </section>
+
+    </main>
+
+    <section class="management" aria-label="Campus command bar">
+      <div class="management__summary" aria-label="Key resources">
+        <span><small>Treasury</small> <b id="treasury-value">$24m</b></span>
+        <span><small>Students</small> <b id="students-value">8,400</b></span>
+        <span><small>Reputation</small> <b id="reputation-value">44</b></span>
+        <span><small>Alumni</small> <b id="alumni-value">16,250</b></span>
+      </div>
+      <nav class="management__actions" id="tray-navigation" aria-label="Management sections">
+        <button type="button" data-management-section="briefing" aria-pressed="true">Briefing</button>
+        <button type="button" data-management-section="allocate" aria-pressed="false">Actions</button>
+        <button type="button" data-management-section="programs" aria-pressed="false">Programs</button>
+        <button type="button" data-management-section="rivals" aria-pressed="false">Rivals</button>
+        <button type="button" data-management-section="boardBook" aria-pressed="false">Board Book</button>
+      </nav>
+      <div class="management__tray" id="management-tray" aria-hidden="true" inert>
+        <button class="tray-handle" type="button" aria-expanded="false" aria-controls="management-tray">
+          <span>Management desk</span>
+          <span aria-hidden="true">&uarr;</span>
+        </button>
+        <div id="tray-content" class="tray-content">
+          <div class="tray-copy">
+            <p class="eyebrow">President's desk</p>
+            <h2>Briefing</h2>
+            <p>Open a game to review the campus.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section class="startup" id="startup" aria-label="Game setup and continuity">
+    <div id="setup-panel" class="startup__panel">
+      <span class="startup__seal" aria-hidden="true">SS</span>
+      <h2 id="startup-title">Opening the gates</h2>
+      <p id="startup-message">Validating the official campus records…</p>
+      <button id="retry-startup" type="button" hidden>Retry</button>
+    </div>
+  </section>
+
+  <dialog id="game-dialog" aria-labelledby="dialog-title">
+    <h2 id="dialog-title">Safety School</h2>
+    <div id="dialog-content"></div>
+    <div class="dialog-actions" id="dialog-actions"></div>
+  </dialog>
+</body>
+</html>

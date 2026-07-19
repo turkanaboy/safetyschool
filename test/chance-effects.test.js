@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { canonicalStringify, loadContent } from '../engine/content.js';
+import { canonicalStringify } from '../engine/content.js';
+import { loadContent } from '../engine/content-node.js';
 import { advanceGame, createGame } from '../engine/index.js';
 import { nextRng } from '../engine/rng.js';
 

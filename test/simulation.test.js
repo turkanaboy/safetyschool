@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 import { AGENT_TYPES, POLICY_VERSION } from '../agents/index.js';
-import { canonicalStringify, digest, loadContent } from '../engine/content.js';
+import { canonicalStringify } from '../engine/content.js';
+import { loadContent } from '../engine/content-node.js';
 import { ENGINE_VERSION, STATE_SCHEMA_VERSION } from '../engine/index.js';
 import { REPLAY_SCHEMA_VERSION } from '../sim/replay.js';
 import { buildReport, formatMarkdown } from '../sim/report.js';
@@ -145,7 +146,7 @@ test('aggregation, reports, and small Random fuzz disclose required evidence', (
       cardsVersion: content.identity.cardsVersion,
       cardsDigest: content.identity.cardsDigest,
       policyVersion: POLICY_VERSION,
-      policyDigest: digest(POLICY_VERSION),
+      policyDigest: content.digest(POLICY_VERSION),
     },
     tuningChanges: [],
   });

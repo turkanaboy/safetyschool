@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { loadContent } from '../engine/content.js';
+import { loadContent } from '../engine/content-node.js';
 import { replayGame } from '../sim/replay.js';
 import { runGame } from '../sim/run.js';
 

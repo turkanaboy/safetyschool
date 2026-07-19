@@ -1,4 +1,4 @@
-import { canonicalStringify, DEPARTMENTS, digest } from './content.js';
+import { canonicalStringify, DEPARTMENTS } from './content.js';
 import { nextRng, shuffle } from './rng.js';
 
 export function roundMoney(value) {
@@ -975,13 +975,13 @@ function resolveYearEnd(state, content, events) {
   resetYearEffects(state);
 }
 
-function persistSnapshot(state, events) {
+function persistSnapshot(state, content, events) {
   const payload = structuredClone(state);
   delete payload.lastSnapshot;
   delete payload.resolution;
   payload.pendingDecision = null;
   const bytes = canonicalStringify(payload);
-  state.lastSnapshot = { round: state.round, cursor: state.rng.cursor, digest: digest(payload) };
+  state.lastSnapshot = { round: state.round, cursor: state.rng.cursor, digest: content.digest(payload) };
   events.push({ type: 'roundSnapshot', ...state.lastSnapshot, bytes });
 }
 
@@ -998,7 +998,7 @@ function finishRound(state, content, events) {
   publishStandings(state, content, events);
   if (!state.finished && state.roundOfYear === content.config.gameLength.yearEndRound) resolveYearEnd(state, content, events);
   state.phase = state.finished ? 'complete' : 'ready';
-  persistSnapshot(state, events);
+  persistSnapshot(state, content, events);
   return { state, events, rng: state.rng, pendingDecision: null };
 }
 

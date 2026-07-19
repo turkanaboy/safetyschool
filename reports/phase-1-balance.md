@@ -4,7 +4,7 @@
 
 ## Evidence identity
 
-- Schedule: `94767dd2d76ae019a19172ce2b32084a84f57a84adc9a7363a246774d85e1c86`
+- Schedule: `b4a6489170bdbb732ef7880b8584011f3d1a6a8d7c40ff7d936f924b710457c0`
 - Schedule method: complete 24-game cycles; 6 cyclic agent offsets at each of 2, 3, 4, 5 players; identical lineup and seat exposure in both program branches.
 - Replay sample: first complete cycle per branch.
 - Engine: 0.2.0 (state schema 2; replay schema 2)

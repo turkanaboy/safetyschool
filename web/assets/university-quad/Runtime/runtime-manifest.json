@@ -1,0 +1,154 @@
+{
+  "schemaVersion": 1,
+  "packageId": "safety-school-university-quad-v1",
+  "target": "browser-canvas-or-dom",
+  "coordinateSpace": {
+    "width": 1536,
+    "height": 1024,
+    "origin": "top-left",
+    "xAxis": "right",
+    "yAxis": "down",
+    "units": "source-pixels"
+  },
+  "board": {
+    "image": "Board/quad-base-six-pad.png",
+    "size": [1536, 1024],
+    "alphaBounds": [53, 96, 1425, 875],
+    "fit": "contain",
+    "sampling": "linear",
+    "transform": {
+      "scale": "min(stageWidth / 1536, stageHeight / 1024)",
+      "offsetX": "stageX + (stageWidth - 1536 * scale) / 2",
+      "offsetY": "stageY + (stageHeight - 1024 * scale) / 2",
+      "screenX": "offsetX + boardX * scale",
+      "screenY": "offsetY + boardY * scale"
+    }
+  },
+  "viewportContract": {
+    "pageScroll": false,
+    "headerHeight": 68,
+    "bottomHudHeight": 86,
+    "activityRailWidth": { "default": 246, "compact": 208 },
+    "fixtures": [
+      { "viewport": [1280, 720], "stageRect": [0, 68, 1034, 566], "boardRenderRect": [92, 68, 849, 566] },
+      { "viewport": [1024, 768], "stageRect": [0, 68, 816, 614], "boardRenderRect": [0, 103, 816, 544] }
+    ]
+  },
+  "pads": [
+    {
+      "id": "academics",
+      "department": "Academics",
+      "center": [768, 218],
+      "placementPivot": [768, 276],
+      "footprint": [[632, 151], [887, 151], [905, 177], [905, 260], [876, 286], [655, 286], [630, 261]]
+    },
+    {
+      "id": "student-affairs",
+      "department": "Student Affairs",
+      "center": [376, 367],
+      "placementPivot": [376, 440],
+      "footprint": [[262, 285], [493, 285], [527, 323], [527, 414], [493, 452], [259, 452], [226, 413], [226, 323]]
+    },
+    {
+      "id": "athletics",
+      "department": "Athletics",
+      "center": [1156, 367],
+      "placementPivot": [1156, 440],
+      "footprint": [[1040, 286], [1273, 286], [1307, 323], [1307, 413], [1273, 452], [1039, 452], [1005, 413], [1005, 323]]
+    },
+    {
+      "id": "admissions",
+      "department": "Admissions",
+      "center": [376, 596],
+      "placementPivot": [376, 676],
+      "footprint": [[260, 514], [492, 514], [528, 552], [528, 650], [491, 690], [260, 690], [224, 651], [224, 553]]
+    },
+    {
+      "id": "marketing",
+      "department": "Marketing",
+      "center": [1156, 594],
+      "placementPivot": [1156, 674],
+      "footprint": [[1040, 514], [1273, 514], [1307, 552], [1307, 649], [1271, 687], [1040, 687], [1005, 649], [1005, 552]]
+    },
+    {
+      "id": "administration",
+      "department": "Administration",
+      "center": [766, 731],
+      "placementPivot": [766, 794],
+      "footprint": [[653, 654], [880, 654], [904, 681], [904, 773], [878, 810], [653, 810], [628, 773], [628, 682]]
+    }
+  ],
+  "buildingTemplate": {
+    "images": {
+      "academics": "Buildings/academics.png",
+      "student-affairs": "Buildings/student-affairs.png",
+      "athletics": "Buildings/athletics.png",
+      "admissions": "Buildings/admissions.png",
+      "marketing": "Buildings/marketing.png",
+      "administration": "Buildings/administration.png"
+    },
+    "size": [512, 512],
+    "sourcePivot": [256, 480],
+    "placement": "sourcePivot-to-pad-placementPivot",
+    "contactShadowOwner": "runtime",
+    "contactShadow": "drop-shadow(0 8px 4px rgb(27 48 36 / 34%))",
+    "levelPadCoverage": { "1": 0.75, "2": 0.8, "3": 0.85, "4": 0.9, "5": 0.95 }
+  },
+  "fountain": {
+    "statefulImplementation": "static-sprite",
+    "staticFallbackImage": "Props/central-fountain-static.png",
+    "staticFallbackSize": [1254, 1254],
+    "staticFallbackAlphaBounds": [225, 184, 798, 800],
+    "staticFallbackPivot": [624, 984],
+    "boardPivot": [768, 531],
+    "staticFallbackDisplayWidth": 220,
+    "waterAndJetBakedIntoFallback": true,
+    "overlayProceduralWaterOnFallback": false
+  },
+  "characters": {
+    "manifest": "Characters/student-actions.json",
+    "canonicalPayload": "atlas",
+    "contactShadowOwner": "runtime",
+    "depthAnchor": "frame.pivot"
+  },
+  "depth": {
+    "board": 0,
+    "fountain": 20000,
+    "worldObject": "30000 + round(boardPivotY)",
+    "constructionFx": 50000,
+    "interactionOverlay": 60000,
+    "hud": 100000,
+    "tieBreak": "department id or actor id, ascending"
+  },
+  "interactions": {
+    "default": { "modelTransform": "translateX(-50%)" },
+    "hover": { "pointer": "fine", "modelTransform": "translateX(-50%) translateY(-3px)", "durationMs": 150, "easing": "cubic-bezier(.22, 1, .36, 1)" },
+    "focus": { "outline": "3px solid #ffd77a", "outlineOffset": 2 },
+    "selected": { "captionBorder": "#f0c55f", "captionRing": "0 0 0 2px rgb(240 197 95 / 38%)" },
+    "pressed": { "modelTransform": "translateX(-50%) scale(.97)" },
+    "validPlacement": { "outline": "3px solid #4f8a68", "previewOpacity": 0.72 },
+    "invalidPlacement": { "outline": "3px solid #a55a38", "previewOpacity": 0.46 },
+    "reducedMotion": { "transitions": false, "constructionDust": false, "constructionRise": false }
+  },
+  "construction": {
+    "preview": { "asset": "target building image", "opacity": 0.55, "pointerEvents": "none" },
+    "rise": { "durationMs": 760, "easing": "cubic-bezier(.23, 1, .32, 1)", "from": "translateY(58%) scale(.96)", "to": "translateY(0) scale(1)" },
+    "dust": { "owner": "runtime-css", "durationMs": 820, "disabledForReducedMotion": true },
+    "completion": { "retainSelectedState": true, "announceVia": "aria-live" }
+  },
+  "campusStates": {
+    "prosperity": { "grass": "#7eaa70", "grassDark": "#56845a", "population": "high", "frisbee": true, "fountainJetScale": 1.0, "buildingSaturation": 1.0 },
+    "strain": { "grass": "#7c8d68", "grassDark": "#5f6d50", "population": 6, "frisbee": false, "fountainJetScale": 0.5, "maintenanceCue": true, "buildingSaturation": 0.85 },
+    "austerity": { "grass": "#797b5f", "grassDark": "#595d49", "population": 3, "frisbee": false, "fountainJetScale": 0.0, "maintenanceCue": true, "protestCue": true, "buildingSaturation": 0.65 }
+  },
+  "textureContract": {
+    "format": "PNG",
+    "colorSpace": "sRGB",
+    "alpha": "straight",
+    "atlasSampling": "linear",
+    "atlasSafeGutter": 16,
+    "mipmaps": false,
+    "initialDecodedBytesMax": 29360128,
+    "singleTextureDecodedBytesMax": 8388608
+  }
+}
