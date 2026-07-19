@@ -44,6 +44,10 @@ test('play server serves only the browser game graph with correct HTTP behavior'
       ['/storage.js', 'text/javascript'],
       ['/online.js', 'text/javascript'],
       ['/vendor/supabase.js', 'text/javascript'],
+      ['/assets/brand/logo-mark.png', 'image/png'],
+      ['/assets/brand/favicon-32.png', 'image/png'],
+      ['/assets/brand/apple-touch-icon.png', 'image/png'],
+      ['/assets/brand/favicon.ico', 'image/x-icon'],
       ['/assets/university-quad/Runtime/runtime-manifest.json', 'application/json'],
       ['/assets/university-quad/Runtime/Board/quad-base-six-pad.png', 'image/png'],
       ...['academics', 'student-affairs', 'athletics', 'admissions', 'marketing', 'administration']

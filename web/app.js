@@ -673,7 +673,7 @@ function showResume(envelope) {
 
 function showInvalidSave(result) {
   showStartup(`
-    <span class="startup__seal" aria-hidden="true">!</span>
+    <span class="startup__seal startup__seal--alert" aria-hidden="true">!</span>
     <p class="eyebrow">Save recovery</p>
     <h1>The Board Book cannot be opened</h1>
     <p>The stored game is ${escapeHtml(result.reason)}. It has not been overwritten or discarded.</p>
@@ -1438,7 +1438,7 @@ async function start() {
     else if (loaded.status === 'unavailable') openSetup('Local autosave is unavailable; this game will continue in memory.');
     else openSetup();
   } catch (error) {
-    showStartup(`<span class="startup__seal" aria-hidden="true">!</span><h1>The campus could not open</h1><p>Check the local server and try again. ${escapeHtml(error.message)}</p><button class="primary-button" type="button" data-retry-startup>Retry</button>`);
+    showStartup(`<span class="startup__seal startup__seal--alert" aria-hidden="true">!</span><h1>The campus could not open</h1><p>Check the local server and try again. ${escapeHtml(error.message)}</p><button class="primary-button" type="button" data-retry-startup>Retry</button>`);
     status.textContent = 'Startup error';
   }
 }

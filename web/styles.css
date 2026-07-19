@@ -61,10 +61,17 @@ button { color: inherit; }
   width: 38px;
   aspect-ratio: 1;
   place-items: center;
+  border: 0;
+  color: transparent;
+  background: url('/assets/brand/logo-mark.png') center / contain no-repeat;
+  font: 700 .75rem/1 Georgia, serif;
+}
+
+.startup__seal--alert {
   border: 1px solid rgb(255 255 255 / 55%);
   border-radius: 50%;
   color: var(--gold);
-  font: 700 .75rem/1 Georgia, serif;
+  background: none;
 }
 
 .rankings { display: flex; align-items: center; justify-content: center; gap: 14px; min-width: 0; }
