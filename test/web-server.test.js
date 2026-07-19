@@ -34,11 +34,16 @@ test('play server serves only the browser game graph with correct HTTP behavior'
   await withServer(async (port) => {
     const routes = [
       ['/', 'text/html'],
+      ['/online.html', 'text/html'],
       ['/styles.css', 'text/css'],
+      ['/online.css', 'text/css'],
       ['/app.js', 'text/javascript'],
+      ['/online-app.js', 'text/javascript'],
       ['/game.js', 'text/javascript'],
       ['/presentation.js', 'text/javascript'],
       ['/storage.js', 'text/javascript'],
+      ['/online.js', 'text/javascript'],
+      ['/vendor/supabase.js', 'text/javascript'],
       ['/assets/university-quad/Runtime/runtime-manifest.json', 'application/json'],
       ['/assets/university-quad/Runtime/Board/quad-base-six-pad.png', 'image/png'],
       ...['academics', 'student-affairs', 'athletics', 'admissions', 'marketing', 'administration']
@@ -110,6 +115,7 @@ test('campus gameplay shell keeps the approved board and exposes the five manage
     assert.doesNotMatch(shell.body, /class="activity"/);
     assert.match(shell.body, /id="tray-content"/);
     assert.match(shell.body, /id="setup-panel"/);
+    assert.match(app.body, /data-play-online/);
     assert.match(shell.body, /id="game-announcer"[^>]+aria-live="polite"/);
     assert.match(shell.body, /class="protest"/);
     assert.match(app.body, /button\.disabled = emergency && !emergencyShortcut/);

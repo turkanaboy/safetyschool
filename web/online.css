@@ -1,0 +1,41 @@
+.online-page { min-height: 100dvh; overflow: auto; color: #eef4f0; background: radial-gradient(circle at 50% 0, #315649, #10251e 65%); }
+.online-shell { display: grid; width: min(900px, calc(100% - 32px)); min-height: 100dvh; align-content: center; gap: 16px; padding: 32px 0; margin: auto; }
+.online-shell > .startup__seal { margin: auto; }
+.online-shell > h1 { margin: 0; font: 700 clamp(2rem, 5vw, 3.4rem)/1 Georgia, serif; text-align: center; }
+.online-shell > p { max-width: 620px; margin: 0 auto; color: #bfd0c7; line-height: 1.55; text-align: center; }
+.online-back { justify-self: start; color: #e7c56f; font-size: .76rem; font-weight: 800; text-decoration: none; }
+.online-back--footer { justify-self: center; }
+.online-form { display: grid; width: min(420px, 100%); gap: 12px; margin: 8px auto 0; }
+.online-form label { color: #e1c476; font-size: .68rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.online-form input { width: 100%; padding: 12px; border: 1px solid rgb(255 255 255 / 28%); border-radius: 8px; margin-top: 5px; color: white; background: rgb(2 18 12 / 55%); font: inherit; }
+.online-form--inline { width: 100%; grid-template-columns: 1fr auto; align-items: end; margin: 0; }
+.online-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.online-header h1 { margin: 2px 0 0; font: 700 1.8rem Georgia, serif; }
+.online-header > div:last-child { display: flex; align-items: center; gap: 8px; }
+.owner-badge { padding: 5px 8px; border: 1px solid #d9ad4f; border-radius: 999px; color: #f0cf7a; font-size: .62rem; font-weight: 900; text-transform: uppercase; }
+.online-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.online-card { padding: 18px; border: 1px solid rgb(255 255 255 / 16%); border-radius: 12px; background: rgb(255 255 255 / 7%); box-shadow: 0 16px 40px rgb(0 0 0 / 12%); }
+.online-card h2 { margin: 0 0 7px; font: 700 1.1rem Georgia, serif; }
+.online-card p { margin: 0 0 14px; color: #b7cac0; font-size: .74rem; line-height: 1.5; }
+.online-message { padding: 10px 12px; border: 1px solid #d9ad4f; border-radius: 8px; color: #f8dda0 !important; background: rgb(217 173 79 / 12%); }
+.online-lobbies ul, .online-seats { display: grid; gap: 8px; padding: 0; margin: 0; list-style: none; }
+.online-lobbies li button { display: flex; width: 100%; align-items: center; justify-content: space-between; padding: 11px; border: 1px solid rgb(255 255 255 / 15%); border-radius: 8px; color: white; background: rgb(0 0 0 / 12%); cursor: pointer; text-align: left; }
+.online-lobbies li span, .online-lobbies li small { display: block; }
+.online-lobbies li small, .online-empty { margin-top: 3px; color: #a9beb4; font-size: .68rem; }
+.online-invite, .online-lobby-actions { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.online-invite > div:last-child, .online-lobby-actions > div:last-child { display: flex; align-items: center; gap: 8px; }
+.online-invite > div:last-child > strong { color: #f1d07d; font: 700 1.5rem/1 monospace; letter-spacing: .15em; }
+.online-seats { grid-template-columns: 1fr 1fr; }
+.online-seat { display: flex; align-items: center; gap: 12px; padding: 16px; border: 1px solid rgb(255 255 255 / 17%); border-radius: 10px; background: rgb(255 255 255 / 7%); }
+.online-seat > span { display: grid; width: 38px; aspect-ratio: 1; place-items: center; border: 1px solid #d9ad4f; border-radius: 50%; color: #f2d486; font: 700 .66rem Georgia, serif; }
+.online-seat strong, .online-seat small { display: block; }
+.online-seat small { margin-top: 4px; color: #aac0b5; font-size: .68rem; }
+.online-seat--ai { opacity: .68; }
+.online-note { color: #94ada1 !important; font-size: .65rem; }
+.online-shell[aria-busy="true"] button, .online-shell[aria-busy="true"] input { pointer-events: none; }
+@media (max-width: 680px) {
+  .online-grid, .online-seats { grid-template-columns: 1fr; }
+  .online-header, .online-invite, .online-lobby-actions { align-items: stretch; flex-direction: column; }
+  .online-header > div:last-child, .online-invite > div:last-child, .online-lobby-actions > div:last-child { flex-wrap: wrap; }
+  .online-form--inline { grid-template-columns: 1fr; }
+}
