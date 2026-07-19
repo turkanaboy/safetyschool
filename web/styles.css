@@ -562,7 +562,7 @@ body[data-campus-state="austerity"] .campus-condition { color: white; background
 
 .primary-button { padding: 10px 15px; color: #142b22; background: #d9ad4f; }
 .primary-button:disabled { cursor: not-allowed; opacity: .48; }
-.secondary-button { padding: 10px 15px; border: 1px solid #c9c4b6; background: #f7f3e9; }
+.secondary-button { padding: 10px 15px; border: 1px solid #c9c4b6; color: #142b22; background: #f7f3e9; text-decoration: none; }
 .danger-button { padding: 10px 15px; color: white; background: #8b4336; }
 .text-button, .danger-link { padding: 7px 0; background: transparent; text-align: left; }
 .text-button { color: #52665d; }

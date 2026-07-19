@@ -1,0 +1,79 @@
+export const SUPABASE_URL = 'https://qpmgwmmwbfehwvmabdds.supabase.co';
+export const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_fzF56Af6fSXTLCPKbnlZhg_0FjtzSOK';
+
+function value(result) {
+  if (result.error) throw new Error(result.error.message);
+  return result.data;
+}
+
+function displayName(name) {
+  const clean = String(name ?? '').trim();
+  if (clean.length < 1 || clean.length > 40) throw new Error('Display name must be 1–40 characters.');
+  return clean;
+}
+
+export function normalizeLobbyCode(code) {
+  const clean = String(code ?? '').trim().toUpperCase();
+  if (!/^[A-F0-9]{8}$/.test(clean)) throw new Error('Enter an eight-character lobby code.');
+  return clean;
+}
+
+export function createOnlineService(client, { redirectOrigin = globalThis.location?.origin } = {}) {
+  return {
+    async session() {
+      return value(await client.auth.getSession()).session;
+    },
+
+    async signIn(email, name, lobbyCode = null) {
+      const cleanEmail = String(email ?? '').trim();
+      if (!cleanEmail) throw new Error('Enter your email address.');
+      const redirect = new URL('/online.html', redirectOrigin);
+      if (lobbyCode) redirect.searchParams.set('join', normalizeLobbyCode(lobbyCode));
+      value(await client.auth.signInWithOtp({
+        email: cleanEmail,
+        options: {
+          data: { display_name: displayName(name) },
+          emailRedirectTo: redirect.toString(),
+        },
+      }));
+    },
+
+    async signOut() {
+      value(await client.auth.signOut());
+    },
+
+    async profile(userId) {
+      return value(await client.from('profiles').select('id,display_name,role').eq('id', userId).single());
+    },
+
+    async lobbies() {
+      return value(await client.from('lobbies')
+        .select('id,invite_code,host_user_id,status,created_at,lobby_members(user_id,seat_index,is_ready,profiles(display_name,role))')
+        .eq('status', 'waiting').order('created_at', { ascending: false }));
+    },
+
+    async createLobby() {
+      return value(await client.rpc('create_lobby'))[0];
+    },
+
+    async joinLobby(code) {
+      return value(await client.rpc('join_lobby', { p_invite_code: normalizeLobbyCode(code) }))[0];
+    },
+
+    async setReady(lobbyId, ready) {
+      return value(await client.rpc('set_lobby_ready', { p_lobby_id: lobbyId, p_ready: Boolean(ready) }))[0];
+    },
+
+    async leaveLobby(lobbyId) {
+      value(await client.rpc('leave_lobby', { p_lobby_id: lobbyId }));
+    },
+
+    subscribe(lobbyId, onChange) {
+      const channel = client.channel(`lobby:${lobbyId}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'lobbies', filter: `id=eq.${lobbyId}` }, onChange)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'lobby_members', filter: `lobby_id=eq.${lobbyId}` }, onChange)
+        .subscribe();
+      return () => client.removeChannel(channel);
+    },
+  };
+}

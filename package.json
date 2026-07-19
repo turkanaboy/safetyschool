@@ -7,11 +7,20 @@
     "node": ">=24"
   },
   "scripts": {
+    "build": "node scripts/build-web.js",
+    "preplay": "npm run build",
     "test": "node --test",
+    "pretest": "npm run build",
     "play": "node web/server.js",
     "validate:content": "node engine/content-node.js",
     "fuzz": "node sim/run.js --fuzz",
     "simulate": "node sim/run.js",
     "verify:phase1": "npm test && npm run fuzz && npm run simulate"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.110.7"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.1"
   }
 }

@@ -636,7 +636,7 @@ function renderSetup(error = '') {
         <div class="setup-level-heading"><div><p class="field-label">Founding investments</p><h2>Assign three free levels</h2></div><output class="level-total">${total}<small>/ 3 placed</small></output></div>
         <div class="setup-upgrades">${upgradeRows}</div>
         <p class="setup-note">Programs are enabled. Every rival uses the same rules and receives no hidden bonus.</p>
-        <button class="primary-button" type="submit" ${total !== 3 ? 'disabled' : ''}>Open the campus</button>
+        <div class="startup-actions"><a class="secondary-button" data-play-online href="/online.html">Online multiplayer</a><button class="primary-button" type="submit" ${total !== 3 ? 'disabled' : ''}>Open the campus</button></div>
       </section>
     </form>`);
 }
@@ -666,6 +666,7 @@ function showResume(envelope) {
     <p>${round === 0 ? 'The founding board is waiting.' : `Saved after Round ${round}.`} Your three-rival lineup and Board Book are intact.</p>
     <div class="startup-actions">
       <button class="primary-button" type="button" data-resume-game>Resume game</button>
+      <a class="secondary-button" data-play-online href="/online.html">Online multiplayer</a>
       <button class="secondary-button" type="button" data-request-new-game>New game</button>
     </div>`);
 }
