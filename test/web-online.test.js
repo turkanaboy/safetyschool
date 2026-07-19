@@ -11,48 +11,37 @@ test('online service validates lobby codes and sends scoped auth and RPC request
         calls.push(['getSession']);
         return { data: { session: { user: { id: 'user-1' } } }, error: null };
       },
-      async signInWithOtp(payload) {
-        calls.push(['signInWithOtp', payload]);
-        return { error: null };
-      },
-      async signOut() {
-        calls.push(['signOut']);
-        return { error: null };
+      async signInAnonymously(payload) {
+        calls.push(['signInAnonymously', payload]);
+        return { data: { session: { user: { id: 'guest-1' } } }, error: null };
       },
     },
     async rpc(name, payload) {
       calls.push(['rpc', name, payload]);
-      return { data: [{ id: 'lobby-1', invite_code: 'ABC123EF' }], error: null };
+      return { data: [{ id: 'lobby-1', invite_code: 'W7K9RP' }], error: null };
     },
   };
-  const online = createOnlineService(client, { redirectOrigin: 'https://safetyschoolgame.com' });
+  const online = createOnlineService(client);
 
+  assert.equal(normalizeLobbyCode(' w7k9rp '), 'W7K9RP');
   assert.equal(normalizeLobbyCode(' abc123ef '), 'ABC123EF');
-  assert.throws(() => normalizeLobbyCode('not-a-code'), /eight-character/i);
+  assert.throws(() => normalizeLobbyCode('ABC10O'), /six-character/i);
   assert.equal((await online.session()).user.id, 'user-1');
-  await online.signIn(' president@example.com ', ' Founders Green ', 'abc123ef');
-  await assert.rejects(online.joinLobby('bad'), /eight-character/i);
-  const lobby = await online.joinLobby('abc123ef');
+  assert.equal((await online.enterGuest(' Founders Green ')).user.id, 'guest-1');
+  await assert.rejects(online.joinLobby('bad'), /six-character/i);
+  const lobby = await online.joinLobby('w7k9rp');
   await online.createLobby();
   await online.setReady('lobby-1', 1);
   await online.leaveLobby('lobby-1');
-  await online.signOut();
 
   assert.equal(lobby.id, 'lobby-1');
   assert.deepEqual(calls, [
     ['getSession'],
-    ['signInWithOtp', {
-      email: 'president@example.com',
-      options: {
-        data: { display_name: 'Founders Green' },
-        emailRedirectTo: 'https://safetyschoolgame.com/online.html?join=ABC123EF',
-      },
-    }],
-    ['rpc', 'join_lobby', { p_invite_code: 'ABC123EF' }],
+    ['signInAnonymously', { options: { data: { display_name: 'Founders Green' } } }],
+    ['rpc', 'join_lobby', { p_invite_code: 'W7K9RP' }],
     ['rpc', 'create_lobby', undefined],
     ['rpc', 'set_lobby_ready', { p_lobby_id: 'lobby-1', p_ready: true }],
     ['rpc', 'leave_lobby', { p_lobby_id: 'lobby-1' }],
-    ['signOut'],
   ]);
 });
 
@@ -61,7 +50,7 @@ test('online service surfaces Supabase failures', async () => {
     async rpc() {
       return { data: null, error: { message: 'Database unavailable' } };
     },
-  }, { redirectOrigin: 'https://safetyschoolgame.com' });
+  });
 
   await assert.rejects(online.createLobby(), /Database unavailable/);
 });
@@ -114,7 +103,7 @@ test('online service scopes profile, lobby, and realtime observations', async ()
       calls.push(['removeChannel', channel]);
     },
   };
-  const online = createOnlineService(client, { redirectOrigin: 'https://safetyschoolgame.com' });
+  const online = createOnlineService(client);
   const onChange = () => {};
 
   assert.equal(await online.profile('user-1'), profile);

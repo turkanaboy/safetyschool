@@ -18,9 +18,9 @@ This slice deliberately stops at secure lobby readiness. It does not upload the 
 
 ## Delivered in this slice
 
-- Passwordless email magic-link sign-in at `/online.html`.
+- Guest entry at `/online.html` with a display name and no visible account login.
 - Automatic player profiles and initial owner-role assignment.
-- Private eight-character lobby codes and shareable invite links.
+- Private six-character lobby codes and shareable invite links; existing eight-character codes remain joinable.
 - Create, join, resume, ready/unready, leave, and host-cancel operations.
 - Four visible seats, with AI placeholders for empty seats.
 - Realtime refresh for lobby membership, readiness, and cancellation.
@@ -36,21 +36,20 @@ Applied Supabase migrations live in `supabase/migrations/` and create:
 - `lobby_members`: one human per lobby seat, seats zero through three, with readiness state.
 - `create_lobby`, `join_lobby`, `set_lobby_ready`, and `leave_lobby`: authenticated RPC mutations.
 
-All three public tables have row-level security enabled. Anonymous table access and mutation RPC execution are revoked. Signed-in users can read only their own profile plus profiles, lobby rows, and membership rows shared through one of their lobbies. Browser clients cannot insert, update, or delete table rows directly.
+All three public tables have row-level security enabled. Access by the unauthenticated Postgres `anon` role and mutation RPC execution are revoked. Supabase Auth guest users receive unique IDs and the `authenticated` role, so they can read only their own profile plus profiles, lobby rows, and membership rows shared through one of their lobbies. Browser clients cannot insert, update, or delete table rows directly.
 
 Lobby mutations also update a lobby heartbeat row so Supabase Postgres Changes can notify remaining members when a membership row is deleted. Host cancellation retains the tiny membership rows as authorization tombstones; cancelled lobbies are excluded from the UI, and their members can no longer read one another's profiles. This avoids relying on filtered realtime `DELETE` events, which Supabase does not support.
 
 The four public RPCs are intentionally `SECURITY DEFINER` because direct table writes are disabled. Each verifies `auth.uid()`, validates its target, uses a fixed empty `search_path`, and performs the smallest allowed mutation. Supabase's security advisor therefore reports the expected authenticated-security-definer warnings for these four functions; they are reviewed exceptions, not unguarded functions. See the [Supabase lint explanation](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable).
 
-## Configuration before public email testing
+## Configuration before guest testing
 
 In Supabase Authentication settings:
 
-1. Set the production Site URL to `https://safetyschoolgame.com` after that domain serves the Vercel production deployment.
-2. Add `https://safetyschoolgame.com/online.html` as an allowed redirect URL.
-3. Keep `http://127.0.0.1:4173/online.html` as a local-development redirect.
-4. Add the exact active Vercel preview `/online.html` URL when testing a branch preview.
-5. Configure custom SMTP before inviting players outside the Supabase project team. The built-in email sender is not intended for a public playtest.
+1. Enable Anonymous Sign-Ins under Auth providers.
+2. Keep the production Site URL set to `https://safetyschoolgame.com`.
+3. Before sharing the game publicly, configure Cloudflare Turnstile or invisible CAPTCHA and pass its token to `signInAnonymously`; the initial private playtest does not include a CAPTCHA key.
+4. Schedule deletion of abandoned anonymous users after the desired retention period because Supabase does not remove them automatically.
 
 The Supabase URL and publishable key are intentionally browser-visible public configuration. Never add a secret or service-role key to this repository, the browser bundle, or a `VITE_`/`NEXT_PUBLIC_`-style environment variable.
 
@@ -74,13 +73,13 @@ npm.cmd run validate:content
 npm.cmd test
 ```
 
-The focused Phase 3 checks cover lobby-code validation, magic-link redirect construction, RPC names and payloads, online static routes, the bundled Supabase client, the solo multiplayer entry point, and the existing campus shell contract.
+The focused Phase 3 checks cover guest-session metadata, six-character and legacy lobby-code validation, RPC names and payloads, online static routes, the bundled Supabase client, the solo multiplayer entry point, and the existing campus shell contract.
 
 Manual browser acceptance for this slice:
 
 - `/online.html` renders a meaningful signed-out screen without a browser error or error overlay.
 - The solo setup still renders and exposes the Online multiplayer link.
-- After authentication is configured, two different accounts can join one lobby, see only shared members, change only their own readiness, and leave/cancel according to host status.
+- After anonymous sign-ins are enabled, two different browsers can join one lobby, see only shared members, change only their own readiness, and leave/cancel according to host status.
 
 ## Next implementation boundary
 

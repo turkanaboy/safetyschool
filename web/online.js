@@ -14,32 +14,20 @@ function displayName(name) {
 
 export function normalizeLobbyCode(code) {
   const clean = String(code ?? '').trim().toUpperCase();
-  if (!/^[A-F0-9]{8}$/.test(clean)) throw new Error('Enter an eight-character lobby code.');
+  if (!/^(?:[2-9A-HJ-NP-Z]{6}|[A-F0-9]{8})$/.test(clean)) throw new Error('Enter a six-character lobby code.');
   return clean;
 }
 
-export function createOnlineService(client, { redirectOrigin = globalThis.location?.origin } = {}) {
+export function createOnlineService(client) {
   return {
     async session() {
       return value(await client.auth.getSession()).session;
     },
 
-    async signIn(email, name, lobbyCode = null) {
-      const cleanEmail = String(email ?? '').trim();
-      if (!cleanEmail) throw new Error('Enter your email address.');
-      const redirect = new URL('/online.html', redirectOrigin);
-      if (lobbyCode) redirect.searchParams.set('join', normalizeLobbyCode(lobbyCode));
-      value(await client.auth.signInWithOtp({
-        email: cleanEmail,
-        options: {
-          data: { display_name: displayName(name) },
-          emailRedirectTo: redirect.toString(),
-        },
-      }));
-    },
-
-    async signOut() {
-      value(await client.auth.signOut());
+    async enterGuest(name) {
+      return value(await client.auth.signInAnonymously({
+        options: { data: { display_name: displayName(name) } },
+      })).session;
     },
 
     async profile(userId) {

@@ -51,21 +51,20 @@ function renderMessage() {
   return message ? `<p class="online-message" role="status">${escapeHtml(message)}</p>` : '';
 }
 
-function renderSignIn(sent = false) {
+function renderGuestEntry() {
+  const invitedCode = pendingCode();
   root.innerHTML = `
     <a class="online-back" href="/">← Solo campus</a>
     <span class="startup__seal" aria-hidden="true">SS</span>
     <p class="eyebrow">Phase 3 multiplayer</p>
-    <h1>${sent ? 'Check your email' : 'Enter the presidents’ lounge'}</h1>
-    <p>${sent ? 'Use the one-time sign-in link to return here. You can close this tab.' : 'Sign in without a password, then create or join a private four-seat lobby.'}</p>
+    <h1>${invitedCode ? `Join game ${escapeHtml(invitedCode)}` : 'Enter the presidents’ lounge'}</h1>
+    <p>Choose the name other presidents will see. No account, email, or password is required.</p>
     ${renderMessage()}
-    ${sent ? '<button class="secondary-button" type="button" data-online-action="retry-sign-in">Use another email</button>' : `
-      <form class="online-form" id="online-sign-in-form">
-        <label>Display name<input name="displayName" maxlength="40" autocomplete="nickname" required></label>
-        <label>Email address<input name="email" type="email" autocomplete="email" required></label>
-        <button class="primary-button" type="submit">Email my sign-in link</button>
-      </form>`}
-    <p class="online-note">For public playtests, custom SMTP must be enabled in Supabase. The built-in sender is suitable only for the project team.</p>`;
+    <form class="online-form" id="online-guest-form">
+      <label>Display name<input name="displayName" maxlength="40" autocomplete="nickname" required></label>
+      <button class="primary-button" type="submit">${invitedCode ? 'Join game' : 'Enter multiplayer'}</button>
+    </form>
+    <p class="online-note">This guest seat stays connected in this browser. Keep its browser data until the game is finished.</p>`;
 }
 
 function renderProfileRecovery() {
@@ -75,7 +74,7 @@ function renderProfileRecovery() {
     <h1>We could not open the presidents&rsquo; lounge</h1>
     <p>Your session is safe. This is usually a temporary connection or profile-provisioning delay.</p>
     ${renderMessage()}
-    <div class="startup-actions"><button class="primary-button" type="button" data-online-action="retry-profile">Try again</button><button class="secondary-button" type="button" data-online-action="sign-out">Sign out</button></div>`;
+    <div class="startup-actions"><button class="primary-button" type="button" data-online-action="retry-profile">Try again</button></div>`;
 }
 
 function renderLobbyList() {
@@ -84,11 +83,11 @@ function renderLobbyList() {
     return `<li><button type="button" data-online-action="open-lobby" data-lobby-id="${lobby.id}"><span><strong>Lobby ${escapeHtml(lobby.invite_code)}</strong><small>${humans} human${humans === 1 ? '' : 's'} · ${4 - humans} AI seat${4 - humans === 1 ? '' : 's'}</small></span><b>Open</b></button></li>`;
   }).join('');
   root.innerHTML = `
-    <header class="online-header"><div><p class="eyebrow">Signed in as</p><h1>${escapeHtml(profile.display_name)}</h1></div><div>${profile.role === 'owner' ? '<span class="owner-badge">Owner</span>' : ''}<button class="secondary-button" type="button" data-online-action="sign-out">Sign out</button></div></header>
+    <header class="online-header"><div><p class="eyebrow">Playing as</p><h1>${escapeHtml(profile.display_name)}</h1></div>${profile.role === 'owner' ? '<span class="owner-badge">Owner</span>' : ''}</header>
     ${renderMessage()}
     <div class="online-grid">
       <section class="online-card"><h2>Create a lobby</h2><p>Invite up to three other presidents. Start with two to four humans; AI campuses will fill open seats.</p><button class="primary-button" type="button" data-online-action="create-lobby">Create lobby</button></section>
-      <section class="online-card"><h2>Join by code</h2><form class="online-form online-form--inline" id="join-lobby-form"><label>Eight-character code<input name="code" maxlength="8" autocomplete="off" required></label><button class="primary-button" type="submit">Join lobby</button></form></section>
+      <section class="online-card"><h2>Join by code</h2><form class="online-form online-form--inline" id="join-lobby-form"><label>Six-character code<input name="code" maxlength="8" autocomplete="off" required></label><button class="primary-button" type="submit">Join lobby</button></form></section>
     </div>
     <section class="online-card online-lobbies"><h2>Your waiting lobbies</h2><ul>${records || '<li class="online-empty">No waiting lobbies yet.</li>'}</ul></section>
     <a class="online-back online-back--footer" href="/">Return to solo campus</a>`;
@@ -105,7 +104,7 @@ function renderLobby(lobby) {
   }).join('');
   const shareUrl = `${location.origin}/online.html?join=${lobby.invite_code}`;
   root.innerHTML = `
-    <header class="online-header"><button class="secondary-button" type="button" data-online-action="back-to-lobbies">← Lobbies</button><div><p class="eyebrow">Private lobby</p><h1>${escapeHtml(lobby.invite_code)}</h1></div><button class="secondary-button" type="button" data-online-action="sign-out">Sign out</button></header>
+    <header class="online-header"><button class="secondary-button" type="button" data-online-action="back-to-lobbies">← Lobbies</button><div><p class="eyebrow">Private lobby</p><h1>${escapeHtml(lobby.invite_code)}</h1></div></header>
     ${renderMessage()}
     <section class="online-card online-invite"><div><h2>Invite presidents</h2><p>Share this code or link. Lobby membership is protected by row-level security.</p></div><div><strong>${escapeHtml(lobby.invite_code)}</strong><button class="primary-button" type="button" data-online-action="copy-invite" data-share-url="${escapeHtml(shareUrl)}">Copy invite link</button></div></section>
     <ol class="online-seats">${seats}</ol>
@@ -114,7 +113,7 @@ function renderLobby(lobby) {
 }
 
 function render() {
-  if (!session) return renderSignIn();
+  if (!session) return renderGuestEntry();
   if (!profile) return renderProfileRecovery();
   const active = lobbies.find((lobby) => lobby.id === activeLobbyId);
   if (active) renderLobby(active);
@@ -171,7 +170,7 @@ async function boot() {
       }
     }
     session = await online.session();
-    if (!session) return renderSignIn();
+    if (!session) return renderGuestEntry();
     profile = await online.profile(session.user.id);
     const queuedCode = pendingCode();
     if (queuedCode) {
@@ -201,9 +200,9 @@ root.addEventListener('submit', (event) => {
   const form = new FormData(event.target);
   perform(async () => {
     message = '';
-    if (event.target.id === 'online-sign-in-form') {
-      await online.signIn(form.get('email'), form.get('displayName'), pendingCode());
-      renderSignIn(true);
+    if (event.target.id === 'online-guest-form') {
+      await online.enterGuest(form.get('displayName'));
+      await boot();
     } else if (event.target.id === 'join-lobby-form') {
       const lobby = await online.joinLobby(form.get('code'));
       activeLobbyId = lobby.id;
@@ -216,21 +215,9 @@ root.addEventListener('submit', (event) => {
 root.addEventListener('click', (event) => {
   const button = event.target.closest('[data-online-action]');
   if (!button) return;
-  if (button.dataset.onlineAction === 'retry-sign-in') return renderSignIn();
   perform(async () => {
     message = '';
-    if (button.dataset.onlineAction === 'sign-out') {
-      await online.signOut();
-      stopSubscription?.();
-      stopSubscription = null;
-      subscribedLobbyId = null;
-      session = null;
-      profile = null;
-      lobbies = [];
-      refreshVersion += 1;
-      setLobbyUrl();
-      renderSignIn();
-    } else if (button.dataset.onlineAction === 'retry-profile') {
+    if (button.dataset.onlineAction === 'retry-profile') {
       profile = await online.profile(session.user.id);
       await refresh();
     } else if (button.dataset.onlineAction === 'create-lobby') {

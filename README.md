@@ -26,7 +26,7 @@ See [docs/phase-2-completion.md](docs/phase-2-completion.md) for the completion 
 
 ## Phase 3 foundation
 
-The first multiplayer slice adds passwordless Supabase authentication and private, realtime lobby creation/join/readiness for two to four human players, with AI reserved for open seats. It does not start or synchronize a match yet; server-authoritative gameplay is the next slice.
+The first multiplayer slice adds guest Supabase sessions and private, realtime lobby creation/join/readiness for two to four human players, with AI reserved for open seats. It does not start or synchronize a match yet; server-authoritative gameplay is the next slice.
 
 Open `http://127.0.0.1:4173/online.html` after starting the local server. See [docs/phase-3-foundation.md](docs/phase-3-foundation.md) for the architecture, live schema, deployment checklist, and next implementation boundary.
 
