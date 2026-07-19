@@ -25,7 +25,7 @@ test('online service validates lobby codes and sends scoped auth and RPC request
       return { data: [{ id: 'lobby-1', invite_code: 'ABC123EF' }], error: null };
     },
   };
-  const online = createOnlineService(client, { redirectOrigin: 'https://safetyschool.com' });
+  const online = createOnlineService(client, { redirectOrigin: 'https://safetyschoolgame.com' });
 
   assert.equal(normalizeLobbyCode(' abc123ef '), 'ABC123EF');
   assert.throws(() => normalizeLobbyCode('not-a-code'), /eight-character/i);
@@ -45,7 +45,7 @@ test('online service validates lobby codes and sends scoped auth and RPC request
       email: 'president@example.com',
       options: {
         data: { display_name: 'Founders Green' },
-        emailRedirectTo: 'https://safetyschool.com/online.html?join=ABC123EF',
+        emailRedirectTo: 'https://safetyschoolgame.com/online.html?join=ABC123EF',
       },
     }],
     ['rpc', 'join_lobby', { p_invite_code: 'ABC123EF' }],
@@ -61,7 +61,7 @@ test('online service surfaces Supabase failures', async () => {
     async rpc() {
       return { data: null, error: { message: 'Database unavailable' } };
     },
-  }, { redirectOrigin: 'https://safetyschool.com' });
+  }, { redirectOrigin: 'https://safetyschoolgame.com' });
 
   await assert.rejects(online.createLobby(), /Database unavailable/);
 });
@@ -114,7 +114,7 @@ test('online service scopes profile, lobby, and realtime observations', async ()
       calls.push(['removeChannel', channel]);
     },
   };
-  const online = createOnlineService(client, { redirectOrigin: 'https://safetyschool.com' });
+  const online = createOnlineService(client, { redirectOrigin: 'https://safetyschoolgame.com' });
   const onChange = () => {};
 
   assert.equal(await online.profile('user-1'), profile);
