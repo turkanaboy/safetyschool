@@ -12,7 +12,7 @@ The confirmed multiplayer shape is:
 - Two to four human players.
 - Existing AI schools fill open seats when a match begins.
 - Asynchronous play with no turn deadline.
-- `tylermlowell@gmail.com` receives the initial owner role.
+- The designated bootstrap account receives the initial owner role.
 
 This slice deliberately stops at secure lobby readiness. It does not upload the Phase 2 local save, trust browser-authored game state, or start a multiplayer match.
 

@@ -161,16 +161,31 @@ async function refresh() {
 async function boot() {
   try {
     const requested = new URLSearchParams(location.search).get('join');
-    if (requested) pendingCode(normalizeLobbyCode(requested));
+    if (requested) {
+      try {
+        pendingCode(normalizeLobbyCode(requested));
+      } catch (error) {
+        message = error.message;
+        pendingCode(null);
+        setLobbyUrl();
+      }
+    }
     session = await online.session();
     if (!session) return renderSignIn();
     profile = await online.profile(session.user.id);
     const queuedCode = pendingCode();
     if (queuedCode) {
-      const lobby = await online.joinLobby(queuedCode);
-      activeLobbyId = lobby.id;
-      pendingCode(null);
-      setLobbyUrl(lobby);
+      try {
+        const lobby = await online.joinLobby(queuedCode);
+        activeLobbyId = lobby.id;
+        setLobbyUrl(lobby);
+      } catch (error) {
+        message = `Could not join that lobby. ${error.message}`;
+        activeLobbyId = null;
+        setLobbyUrl();
+      } finally {
+        pendingCode(null);
+      }
     } else {
       activeLobbyId = new URLSearchParams(location.search).get('lobby');
     }
@@ -235,7 +250,12 @@ root.addEventListener('click', (event) => {
       render();
     } else if (button.dataset.onlineAction === 'toggle-ready') {
       const lobby = lobbies.find((candidate) => candidate.id === activeLobbyId);
-      const member = lobby.lobby_members.find((candidate) => candidate.user_id === session.user.id);
+      const member = lobby?.lobby_members?.find((candidate) => candidate.user_id === session.user.id);
+      if (!member) {
+        message = 'That lobby changed before your action completed. Your lobby list has been refreshed.';
+        await refresh();
+        return;
+      }
       await online.setReady(activeLobbyId, !member.is_ready);
       await refresh();
     } else if (button.dataset.onlineAction === 'leave-lobby') {
