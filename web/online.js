@@ -6,6 +6,20 @@ function value(result) {
   return result.data;
 }
 
+async function invoke(client, body) {
+  const result = await client.functions.invoke('match-command', { body });
+  if (result.error) {
+    let detail;
+    try {
+      detail = await result.error.context?.json?.();
+    } catch {
+      // Keep the SDK message when the response body is unavailable.
+    }
+    throw new Error(detail?.error ?? result.error.message);
+  }
+  return result.data;
+}
+
 function displayName(name) {
   const clean = String(name ?? '').trim();
   if (clean.length < 1 || clean.length > 40) throw new Error('Display name must be 1–40 characters.');
@@ -56,10 +70,31 @@ export function createOnlineService(client) {
       value(await client.rpc('leave_lobby', { p_lobby_id: lobbyId }));
     },
 
+    async matchViews() {
+      return value(await client.from('match_views')
+        .select('match_id,version,view,updated_at,matches(status,updated_at)')
+        .order('updated_at', { ascending: false }));
+    },
+
+    async startMatch(lobbyId) {
+      return invoke(client, { action: 'start', lobbyId });
+    },
+
+    async sendMatchCommand(command) {
+      return invoke(client, command);
+    },
+
     subscribe(lobbyId, onChange) {
       const channel = client.channel(`lobby:${lobbyId}`)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'lobbies', filter: `id=eq.${lobbyId}` }, onChange)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'lobby_members', filter: `lobby_id=eq.${lobbyId}` }, onChange)
+        .subscribe();
+      return () => client.removeChannel(channel);
+    },
+
+    subscribeMatch(matchId, onChange) {
+      const channel = client.channel(`match:${matchId}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'match_views', filter: `match_id=eq.${matchId}` }, onChange)
         .subscribe();
       return () => client.removeChannel(channel);
     },

@@ -1,7 +1,7 @@
-# Phase 3 Multiplayer Foundation
+# Phase 3 Multiplayer Runtime
 
-Updated: 2026-07-19
-Branch: `codex/phase-3-multiplayer-foundation`
+Updated: 2026-07-20
+Branch: `codex/phase-3-match-sync`
 
 ## Decision
 
@@ -14,7 +14,7 @@ The confirmed multiplayer shape is:
 - Asynchronous play with no turn deadline.
 - The designated bootstrap account receives the initial owner role.
 
-This slice deliberately stops at secure lobby readiness. It does not upload the Phase 2 local save, trust browser-authored game state, or start a multiplayer match.
+The browser never uploads the Phase 2 local save or authors canonical match state. An authenticated Edge Function validates commands and advances the unchanged deterministic engine; Postgres stores versioned snapshots and filtered player views.
 
 ## Delivered in this slice
 
@@ -24,6 +24,12 @@ This slice deliberately stops at secure lobby readiness. It does not upload the 
 - Create, join, resume, ready/unready, leave, and host-cancel operations.
 - Four visible seats, with AI placeholders for empty seats.
 - Realtime refresh for lobby membership, readiness, and cancellation.
+- Host-only match start after at least two humans join and every human is ready.
+- Fair four-campus initialization, with deterministic AI schools filling open seats and the same balanced founding plan for every human.
+- Server-authoritative begin-term, allocation, pending-decision, completion, and winner transitions.
+- Idempotent command IDs, compare-and-swap match versions, append-only command history, and reconnectable snapshots.
+- Per-player realtime views that omit rivals' private treasury and private-card information.
+- A playable multiplayer management screen with resources, campuses, events, action explanations, waiting state, and next-turn controls.
 - A Vercel static build that packages the solo game, multiplayer UI, engine/content assets, and pinned Supabase browser client into `dist/`.
 - A solo-game entry point linking to multiplayer without changing the validated Phase 2 mechanics.
 
@@ -35,12 +41,17 @@ Applied Supabase migrations live in `supabase/migrations/` and create:
 - `lobbies`: host-owned waiting/cancelled lobbies with unique invite codes.
 - `lobby_members`: one human per lobby seat, seats zero through three, with readiness state.
 - `create_lobby`, `join_lobby`, `set_lobby_ready`, and `leave_lobby`: authenticated RPC mutations.
+- `matches` and `match_seats`: the match lifecycle and immutable human/AI seat identities.
+- `match_snapshots`: the current canonical engine state and server metadata.
+- `match_views`: one filtered observation per human, published through Realtime.
+- `match_actions` and `match_submissions`: idempotent command history and current-term human allocations.
+- `commit_match_start`, `store_match_submission`, `update_match_views`, and `commit_match_transition`: service-role-only transactional mutations called by `match-command`.
 
-All three public tables have row-level security enabled. Access by the unauthenticated Postgres `anon` role and mutation RPC execution are revoked. Supabase Auth guest users receive unique IDs and the `authenticated` role, so they can read only their own profile plus profiles, lobby rows, and membership rows shared through one of their lobbies. Browser clients cannot insert, update, or delete table rows directly.
+All public tables have row-level security enabled. Access by the unauthenticated Postgres `anon` role and mutation RPC execution are revoked. Supabase Auth guest users receive unique IDs and the `authenticated` role, so they can read only their own profile, shared lobby records, match membership, and their own filtered match view. Browser clients cannot insert, update, or delete match rows directly.
 
 Lobby mutations also update a lobby heartbeat row so Supabase Postgres Changes can notify remaining members when a membership row is deleted. Host cancellation retains the tiny membership rows as authorization tombstones; cancelled lobbies are excluded from the UI, and their members can no longer read one another's profiles. This avoids relying on filtered realtime `DELETE` events, which Supabase does not support.
 
-The four public RPCs are intentionally `SECURITY DEFINER` because direct table writes are disabled. Each verifies `auth.uid()`, validates its target, uses a fixed empty `search_path`, and performs the smallest allowed mutation. Supabase's security advisor therefore reports the expected authenticated-security-definer warnings for these four functions; they are reviewed exceptions, not unguarded functions. See the [Supabase lint explanation](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable).
+The lobby RPCs are intentionally `SECURITY DEFINER` because direct table writes are disabled. Each verifies `auth.uid()`, validates its target, uses a fixed empty `search_path`, and performs the smallest allowed mutation. The match RPCs are executable only by `service_role`; the `match-command` Edge Function independently verifies the user's access token before invoking them. Supabase's security advisor may therefore report reviewed security-definer exceptions. See the [Supabase lint explanation](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable).
 
 ## Configuration before guest testing
 
@@ -49,13 +60,13 @@ In Supabase Authentication settings:
 1. Enable Anonymous Sign-Ins under Auth providers.
 2. Keep the production Site URL set to `https://safetyschoolgame.com`.
 3. Before sharing the game publicly, configure Cloudflare Turnstile or invisible CAPTCHA and pass its token to `signInAnonymously`; the initial private playtest does not include a CAPTCHA key.
-4. Schedule deletion of abandoned anonymous users after the desired retention period because Supabase does not remove them automatically.
+4. Do not enable time-based anonymous-user deletion until match expiration exists. Deleting a guest who is seated in an active asynchronous match would remove that player's view and leave the match waiting for a player who can no longer reconnect.
 
 The Supabase URL and publishable key are intentionally browser-visible public configuration. Never add a secret or service-role key to this repository, the browser bundle, or a `VITE_`/`NEXT_PUBLIC_`-style environment variable.
 
 ## Vercel deployment
 
-The GitHub-connected Vercel project is `safetyschool`. `vercel.json` runs `npm run build` and publishes `dist/`; no runtime server or secret environment variable is required for this slice.
+The GitHub-connected Vercel project is `safetyschool`. `vercel.json` runs `npm run build` and publishes `dist/`. Authoritative match commands run in the deployed Supabase `match-command` Edge Function, whose secret API key is supplied by Supabase's managed function environment and never by Vercel or the browser.
 
 Before production testing:
 
@@ -73,24 +84,25 @@ npm.cmd run validate:content
 npm.cmd test
 ```
 
-The focused Phase 3 checks cover guest-session metadata, six-character and legacy lobby-code validation, RPC names and payloads, online static routes, the bundled Supabase client, the solo multiplayer entry point, and the existing campus shell contract.
+The focused Phase 3 checks cover guest-session metadata, lobby commands, authoritative runtime and service transitions, private observations, match command payloads, online static routes, and the existing campus shell contract.
 
-Manual browser acceptance for this slice:
+Manual browser acceptance completed for this slice:
 
 - `/online.html` renders a meaningful signed-out screen without a browser error or error overlay.
 - The solo setup still renders and exposes the Online multiplayer link.
-- After anonymous sign-ins are enabled, two different browsers can join one lobby, see only shared members, change only their own readiness, and leave/cancel according to host status.
+- Two isolated guests joined one lobby, readied, and started a four-campus match with two AI schools.
+- Both guests received allocation controls, the first waited for the second, and the second submission resolved the term once for both players.
+- Reloading a guest restored the same active match and version.
+- Stored player views exposed each player's own treasury and no opponent treasury values.
 
 ## Next implementation boundary
 
-The next slice is server-authoritative match creation and turn resolution:
+The next multiplayer slice should bring the validated Phase 2 campus experience onto the authoritative match view:
 
-1. Add versioned match, player-seat, action-log, and snapshot records.
-2. Start only from a lobby with at least two human members and the required readiness rule.
-3. Seed and initialize the unchanged deterministic engine on the server.
-4. Accept idempotent typed commands, validate the acting player and current decision, resolve on the server, and append the result transactionally.
-5. Return player-filtered observations so treasury, private cards, and Administration foresight never cross an information boundary.
-6. Reconnect from a versioned snapshot plus append-only actions; never accept a Phase 2 browser save as authoritative state.
-7. Add match completion events that later owner analytics can aggregate.
+1. Render each human's live campus board and condition animations from their filtered observation.
+2. Bring Briefing, Programs, Rivals, and Board Book into the multiplayer shell without exposing private state.
+3. Add the staged headline/disruption and emergency-board presentation used by solo play.
+4. Replace the fixed balanced founding plan with a synchronized pregame setup flow.
+5. Exercise elimination, human-owned pending decisions, annual reports, final results, and reconnects across a complete browser-played game.
 
 The owner dashboard and copy-only card editor remain later Phase 3 slices. New card modifier types and continuous dollar-allocation budgeting remain separate mechanics work because either requires a complete engine/content contract and rebalance pass.

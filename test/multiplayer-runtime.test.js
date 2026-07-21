@@ -29,6 +29,7 @@ test('multiplayer runtime creates four fair seats and player-filtered views', ()
   created.state.players[1].treasury = 123.45;
   const views = matchViews(created.state, created.meta, content, { events: created.events });
   assert.equal(views['human-1'].own.id, 'human-1');
+  assert.equal(views['human-1'].roundsPerYear, content.config.gameLength.roundsPerYear);
   assert.equal('treasury' in views['human-1'].opponents.find(({ id }) => id === 'human-2'), false);
   assert.equal(JSON.stringify(views['human-1']).includes(`\"treasury\":${created.state.players[1].treasury}`), false);
 });

@@ -96,6 +96,7 @@ export function matchViews(state, meta, content, { submittedUserIds = [], events
     const legal = canAllocate || ownsDecision ? legalActions(state, member.playerId, content) : null;
     return [member.userId, {
       ...observation,
+      roundsPerYear: content.config.gameLength.roundsPerYear,
       legal,
       submitted: submitted.has(member.userId),
       waitingFor,
