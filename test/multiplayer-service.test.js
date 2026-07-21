@@ -95,6 +95,42 @@ test('match service treats a raced begin-term command as already advanced', asyn
   }), expected);
 });
 
+test('match service resolves an AI-only term after every human is eliminated', async () => {
+  const matchId = '22222222-2222-4222-8222-222222222222';
+  const created = createMatchRuntime({
+    seed: 42,
+    members: lobby.lobby_members.map((member) => ({
+      userId: member.user_id,
+      name: member.profiles.display_name,
+      seat: member.seat_index,
+    })),
+  }, content);
+  created.state.players[0].active = false;
+  created.state.players[1].active = false;
+  let committed;
+  const store = {
+    async getRequest() { return null; },
+    async getRuntime() {
+      return {
+        match: { id: matchId, status: 'active', version: 4 },
+        snapshot: { state: created.state, meta: created.meta },
+      };
+    },
+    async commitTransition(payload) { committed = payload; },
+    async getView() { return { matchId, version: 5, view: { phase: committed.state.phase } }; },
+  };
+  const service = createMatchService({ content, store });
+
+  const response = await service.handle(lobby.host_user_id, {
+    action: 'beginTerm',
+    matchId,
+    requestId: '33333333-3333-4333-8333-333333333333',
+  });
+
+  assert.notEqual(response.view.phase, 'allocation');
+  assert.ok(committed.events.some(({ type }) => type === 'actionsResolved'));
+});
+
 test('match service resumes a stored allocation retry before its transition commits', async () => {
   const matchId = '22222222-2222-4222-8222-222222222222';
   const requestId = '33333333-3333-4333-8333-333333333333';

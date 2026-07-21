@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createOnlineService, normalizeLobbyCode } from '../web/online.js';
+import { createOnlineService, normalizeLobbyCode, selectMatchRecord } from '../web/online.js';
+
+test('requested match deep links take precedence over automatic active-match resume', () => {
+  const records = [
+    { match_id: 'newer', matches: { status: 'active' } },
+    { match_id: 'requested', matches: { status: 'active' } },
+  ];
+
+  assert.equal(selectMatchRecord(records, 'requested').match_id, 'requested');
+  assert.equal(selectMatchRecord(records, 'missing').match_id, 'newer');
+});
 
 test('online service validates lobby codes and sends scoped auth and RPC requests', async () => {
   const calls = [];

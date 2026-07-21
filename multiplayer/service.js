@@ -126,12 +126,19 @@ export function createMatchService({ content, store, randomSeed = seedValue, ran
         if (runtime.snapshot.state.phase !== 'ready' || runtime.snapshot.state.finished) {
           return current(matchId, userId);
         }
+        let result = startMatchRound(runtime.snapshot.state, runtime.snapshot.meta, userId, content);
+        const hasActiveHuman = runtime.snapshot.meta.humans.some(({ playerId }) =>
+          result.state.players.find(({ id }) => id === playerId)?.active);
+        if (!hasActiveHuman) {
+          const resolved = resolveMatchAllocation(result.state, runtime.snapshot.meta, new Map(), content);
+          result = { state: resolved.state, events: [...result.events, ...resolved.events] };
+        }
         return transition(
           runtime,
           userId,
           id,
           { type: 'startRound' },
-          startMatchRound(runtime.snapshot.state, runtime.snapshot.meta, userId, content),
+          result,
         );
       }
 

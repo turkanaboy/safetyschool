@@ -32,6 +32,15 @@ export function normalizeLobbyCode(code) {
   return clean;
 }
 
+export function selectMatchRecord(records, requestedMatchId) {
+  const requested = records.find((record) => record.match_id === requestedMatchId);
+  if (requested) return requested;
+  return records.find((record) => {
+    const match = Array.isArray(record.matches) ? record.matches[0] : record.matches;
+    return match?.status === 'active';
+  });
+}
+
 export function createOnlineService(client) {
   return {
     async session() {

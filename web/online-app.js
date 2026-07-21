@@ -4,6 +4,7 @@ import {
   SUPABASE_URL,
   createOnlineService,
   normalizeLobbyCode,
+  selectMatchRecord,
 } from '/online.js';
 
 const root = document.querySelector('#online-root');
@@ -241,8 +242,7 @@ async function refresh() {
   lobbies = nextLobbies;
   matchRecords = nextMatches;
   const requestedMatchId = new URLSearchParams(location.search).get('match');
-  const resume = matchRecords.find((record) => matchStatus(record) === 'active')
-    ?? matchRecords.find((record) => record.match_id === requestedMatchId);
+  const resume = selectMatchRecord(matchRecords, requestedMatchId);
   if (resume) {
     activeMatchId = resume.match_id;
     activeLobbyId = null;
