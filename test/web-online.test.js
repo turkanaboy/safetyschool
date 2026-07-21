@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createOnlineService, normalizeLobbyCode } from '../web/online.js';
+import { createOnlineService, normalizeLobbyCode, selectMatchRecord } from '../web/online.js';
+
+test('requested match deep links take precedence over automatic active-match resume', () => {
+  const records = [
+    { match_id: 'newer', matches: { status: 'active' } },
+    { match_id: 'requested', matches: { status: 'active' } },
+  ];
+
+  assert.equal(selectMatchRecord(records, 'requested').match_id, 'requested');
+  assert.equal(selectMatchRecord(records, 'missing').match_id, 'newer');
+});
 
 test('online service validates lobby codes and sends scoped auth and RPC requests', async () => {
   const calls = [];
@@ -53,6 +63,24 @@ test('online service surfaces Supabase failures', async () => {
   });
 
   await assert.rejects(online.createLobby(), /Database unavailable/);
+});
+
+test('online service surfaces Edge Function response details', async () => {
+  const online = createOnlineService({
+    functions: {
+      async invoke() {
+        return {
+          data: null,
+          error: {
+            message: 'Edge Function returned a non-2xx status code',
+            context: { async json() { return { error: 'Every human must be ready.' }; } },
+          },
+        };
+      },
+    },
+  });
+
+  await assert.rejects(online.startMatch('lobby-1'), /Every human must be ready/);
 });
 
 test('online service scopes profile, lobby, and realtime observations', async () => {
@@ -138,4 +166,44 @@ test('online service scopes profile, lobby, and realtime observations', async ()
   ]);
   assert.deepEqual(calls.slice(12).map(([name]) => name), ['subscribe', 'removeChannel']);
   assert.equal(calls[13][1], realtimeChannel);
+});
+
+test('online service starts matches, sends idempotent commands, and scopes match updates', async () => {
+  const calls = [];
+  const channel = {
+    on(event, filter, callback) {
+      calls.push(['on', event, filter, callback]);
+      return this;
+    },
+    subscribe() { calls.push(['subscribe']); return this; },
+  };
+  const client = {
+    functions: {
+      async invoke(name, options) {
+        calls.push(['invoke', name, options]);
+        return { data: { matchId: 'match-1', version: 1 }, error: null };
+      },
+    },
+    channel(name) { calls.push(['channel', name]); return channel; },
+    removeChannel(value) { calls.push(['removeChannel', value]); },
+  };
+  const online = createOnlineService(client);
+  const onChange = () => {};
+
+  await online.startMatch('lobby-1');
+  await online.sendMatchCommand({ action: 'beginTerm', matchId: 'match-1', requestId: 'request-1' });
+  const stop = online.subscribeMatch('match-1', onChange);
+  stop();
+
+  assert.deepEqual(calls.slice(0, 2), [
+    ['invoke', 'match-command', { body: { action: 'start', lobbyId: 'lobby-1' } }],
+    ['invoke', 'match-command', { body: { action: 'beginTerm', matchId: 'match-1', requestId: 'request-1' } }],
+  ]);
+  assert.deepEqual(calls[2], ['channel', 'match:match-1']);
+  assert.deepEqual(calls[3].slice(0, 3), [
+    'on',
+    'postgres_changes',
+    { event: '*', schema: 'public', table: 'match_views', filter: 'match_id=eq.match-1' },
+  ]);
+  assert.deepEqual(calls.slice(4).map(([name]) => name), ['subscribe', 'removeChannel']);
 });

@@ -32,9 +32,24 @@
 .online-seat small { margin-top: 4px; color: #aac0b5; font-size: .68rem; }
 .online-seat--ai { opacity: .68; }
 .online-note { color: #94ada1 !important; font-size: .65rem; }
+.online-match-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.online-match-stats article { display: grid; gap: 4px; padding: 12px 14px; border: 1px solid rgb(255 255 255 / 14%); border-radius: 10px; background: rgb(0 0 0 / 14%); }
+.online-match-stats span { color: #a9beb4; font-size: .64rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.online-match-stats strong { color: #f7df9c; font: 700 1.15rem Georgia, serif; }
+.online-match-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(240px, .8fr); gap: 12px; align-items: start; }
+.online-match-action { min-height: 280px; }
+.online-match-choices { display: grid; gap: 7px; }
+.online-match-choice { display: flex; align-items: center; gap: 9px; padding: 9px 10px; border: 1px solid rgb(255 255 255 / 13%); border-radius: 8px; color: #eef4f0; background: rgb(0 0 0 / 12%); cursor: pointer; font-size: .76rem; }
+.online-match-choice:has(input:checked) { border-color: #d9ad4f; background: rgb(217 173 79 / 13%); }
+.online-match-choice input { accent-color: #d9ad4f; }
+.online-match-choices > button { margin-top: 5px; justify-self: start; }
+.online-match-list { display: grid; gap: 7px; padding: 0; margin: 0 0 20px; list-style: none; }
+.online-match-list li { display: flex; justify-content: space-between; gap: 10px; padding-bottom: 7px; border-bottom: 1px solid rgb(255 255 255 / 10%); color: #adc2b8; font-size: .72rem; }
+.online-match-list strong { color: #eef4f0; }
 .online-shell[aria-busy="true"] button, .online-shell[aria-busy="true"] input { pointer-events: none; }
 @media (max-width: 680px) {
-  .online-grid, .online-seats { grid-template-columns: 1fr; }
+  .online-grid, .online-seats, .online-match-grid { grid-template-columns: 1fr; }
+  .online-match-stats { grid-template-columns: 1fr 1fr; }
   .online-header, .online-invite, .online-lobby-actions { align-items: stretch; flex-direction: column; }
   .online-header > div:last-child, .online-invite > div:last-child, .online-lobby-actions > div:last-child { flex-wrap: wrap; }
   .online-form--inline { grid-template-columns: 1fr; }
