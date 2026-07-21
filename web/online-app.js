@@ -382,8 +382,7 @@ root.addEventListener('click', (event) => {
     } else if (button.dataset.onlineAction === 'close-match') {
       activeMatchId = null;
       setOnlineUrl();
-      subscribe();
-      render();
+      await refresh();
     } else if (button.dataset.onlineAction === 'leave-lobby') {
       await online.leaveLobby(activeLobbyId);
       activeLobbyId = null;
