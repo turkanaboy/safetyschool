@@ -1,4 +1,12 @@
 import { createClient } from '/vendor/supabase.js';
+import { dumpRankings } from '/game.js';
+import {
+  applyCampusEnvironment,
+  campusPresentation,
+  clearCampusEnvironment,
+  renderCampusBoard,
+  startCampusMotion,
+} from '/online-campus.js';
 import {
   SUPABASE_PUBLISHABLE_KEY,
   SUPABASE_URL,
@@ -22,6 +30,12 @@ let subscribedKey = null;
 let busy = false;
 let refreshVersion = 0;
 let message = '';
+let campusRuntime = null;
+let characterRuntime = null;
+let campusLoad = null;
+let campusAssetError = '';
+let previousDepartmentLevels = null;
+let stopCampusMotion = null;
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (character) => ({
@@ -53,6 +67,35 @@ function profileOf(member) {
 
 function renderMessage() {
   return message ? `<p class="online-message" role="status">${escapeHtml(message)}</p>` : '';
+}
+
+function resetMatchShell() {
+  stopCampusMotion?.();
+  stopCampusMotion = null;
+  root.className = 'online-shell';
+  document.body.classList.remove('online-match-page');
+  clearCampusEnvironment();
+  previousDepartmentLevels = null;
+}
+
+function ensureCampusAssets() {
+  if (campusLoad) return campusLoad;
+  campusLoad = Promise.all([
+    fetch('/assets/university-quad/Runtime/runtime-manifest.json'),
+    fetch('/assets/university-quad/Runtime/Characters/student-actions.json'),
+  ]).then(async (responses) => {
+    if (responses.some((response) => !response.ok)) throw new Error('The campus art package could not be loaded.');
+    [campusRuntime, characterRuntime] = await Promise.all(responses.map((response) => response.json()));
+    campusAssetError = '';
+    render();
+  }).catch((error) => {
+    campusRuntime = null;
+    characterRuntime = null;
+    campusLoad = null;
+    campusAssetError = error.message;
+    render();
+  });
+  return campusLoad;
 }
 
 function renderGuestEntry() {
@@ -159,11 +202,32 @@ function actionLabel(option, view) {
   return titleCase(action.type);
 }
 
+function turnGuide(view, nextTerm) {
+  if (view.submitted) return 'Allocation submitted';
+  if (view.canStartRound) return `Ready for ${escapeHtml(nextTerm)}`;
+  if (view.legal) return 'Your decision is open';
+  return 'Match in progress';
+}
+
 function renderMatch(record) {
+  stopCampusMotion?.();
+  stopCampusMotion = null;
   const view = record.view;
   const status = matchStatus(record) ?? record.status;
   const term = termLabel(view);
   const nextTerm = termLabel(view, true);
+  if (!campusRuntime || !characterRuntime) {
+    root.className = 'online-shell';
+    root.innerHTML = `<span class="startup__seal" aria-hidden="true">SS</span><p class="eyebrow">Online campus</p><h1>${campusAssetError ? 'Campus art unavailable' : 'Opening your campus'}</h1><p>${escapeHtml(campusAssetError || 'Placing buildings, students, and the board for live play…')}</p>${campusAssetError ? '<button class="primary-button" type="button" data-online-action="retry-campus">Try again</button>' : ''}`;
+    if (!campusAssetError) void ensureCampusAssets();
+    return;
+  }
+
+  root.className = 'game-shell online-game-shell';
+  document.body.classList.add('online-match-page');
+  const campus = campusPresentation(view.own, campusRuntime);
+  applyCampusEnvironment(campus.condition);
+  const rankingsMarkup = dumpRankings(view).map((school) => `<li class="${school.id === view.own.id ? 'is-player' : ''}"><span>${school.closed ? '×' : school.rank ?? '—'}</span> ${escapeHtml(school.id === view.own.id ? 'You' : school.name.replace(/ (University|College|Institute)$/, ''))}</li>`).join('');
   const rivals = view.players.filter(({ id }) => id !== view.own.id).map((player) => `
     <li><strong>${escapeHtml(player.name)}</strong><span>${player.active ? 'Open' : 'Closed'}</span></li>`).join('');
   const events = view.latestEvents.slice(-4).map((event) => `<li>${escapeHtml(titleCase(event.type))}</li>`).join('');
@@ -189,22 +253,44 @@ function renderMatch(record) {
   }
 
   root.innerHTML = `
-    <header class="online-header"><div><p class="eyebrow">Online campus · ${escapeHtml(term)}</p><h1>${escapeHtml(view.own.name)}</h1></div><span class="owner-badge">Live</span></header>
-    ${renderMessage()}
-    <section class="online-match-stats" aria-label="Campus resources">
-      <article><span>Treasury</span><strong>${formatMoney(view.own.treasury)}</strong></article>
-      <article><span>Students</span><strong>${formatNumber(view.own.students)}</strong></article>
-      <article><span>Reputation</span><strong>${formatNumber(view.own.reputation)}</strong></article>
-      <article><span>Alumni</span><strong>${formatNumber(view.own.alumni)}</strong></article>
-    </section>
-    <div class="online-match-grid">${action}<aside class="online-card"><h2>Campuses</h2><ul class="online-match-list">${rivals}</ul><h2>Latest resolutions</h2><ul class="online-match-list">${events || '<li>The board is convening.</li>'}</ul></aside></div>`;
+    <header class="topbar online-match-topbar">
+      <a class="wordmark" href="/"><span class="wordmark__crest" aria-hidden="true">SS</span><span>Safety School</span></a>
+      <div class="rankings" aria-label="Definitive Ultimate Marketing Ploy rankings"><span class="rankings__label"><strong>DUMP</strong><small>Definitive Ultimate Marketing Ploy</small></span><ol>${rankingsMarkup}</ol></div>
+      <div class="status-chip" data-tone="active"><small>Your campus · ${escapeHtml(term)}</small><strong>${escapeHtml(view.own.name)}</strong><span>${escapeHtml(campus.condition.label)} · Live multiplayer</span></div>
+    </header>
+    <main class="playing-area online-playing-area">
+      <section class="board-stage online-campus-stage">${renderCampusBoard(view.own, campusRuntime, characterRuntime)}</section>
+      <aside class="online-match-rail" aria-label="Current turn and match activity">
+        ${renderMessage()}
+        ${action}
+        <section class="online-card online-match-record"><h2>Campuses</h2><ul class="online-match-list">${rivals}</ul><h2>Latest resolutions</h2><ul class="online-match-list">${events || '<li>The board is convening.</li>'}</ul></section>
+      </aside>
+    </main>
+    <footer class="management online-match-hud">
+      <div class="online-turn-guide" aria-live="polite"><small>Live shared turn</small><strong>${turnGuide(view, nextTerm)}</strong></div>
+      <section class="management__summary" aria-label="Campus resources">
+        <span><small>Treasury</small><b>${formatMoney(view.own.treasury)}</b></span>
+        <span><small>Students</small><b>${formatNumber(view.own.students)}</b></span>
+        <span><small>Reputation</small><b>${formatNumber(view.own.reputation)}</b></span>
+        <span><small>Alumni</small><b>${formatNumber(view.own.alumni)}</b></span>
+      </section>
+    </footer>`;
+
+  stopCampusMotion = startCampusMotion(root, campusRuntime);
+  if (previousDepartmentLevels) {
+    for (const [department, level] of Object.entries(view.own.departments)) {
+      if (level > previousDepartmentLevels[department]) root.querySelector(`[data-department="${department}"]`)?.classList.add('is-building');
+    }
+  }
+  previousDepartmentLevels = { ...view.own.departments };
 }
 
 function render() {
-  if (!session) return renderGuestEntry();
-  if (!profile) return renderProfileRecovery();
   const match = matchRecords.find((record) => record.match_id === activeMatchId);
   if (match) return renderMatch(match);
+  resetMatchShell();
+  if (!session) return renderGuestEntry();
+  if (!profile) return renderProfileRecovery();
   const active = lobbies.find((lobby) => lobby.id === activeLobbyId);
   if (active) renderLobby(active);
   else renderLobbyList();
@@ -332,6 +418,9 @@ root.addEventListener('click', (event) => {
     if (button.dataset.onlineAction === 'retry-profile') {
       profile = await online.profile(session.user.id);
       await refresh();
+    } else if (button.dataset.onlineAction === 'retry-campus') {
+      campusAssetError = '';
+      await ensureCampusAssets();
     } else if (button.dataset.onlineAction === 'create-lobby') {
       const lobby = await online.createLobby();
       activeLobbyId = lobby.id;
