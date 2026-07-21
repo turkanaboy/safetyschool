@@ -47,10 +47,79 @@
 .online-match-list li { display: flex; justify-content: space-between; gap: 10px; padding-bottom: 7px; border-bottom: 1px solid rgb(255 255 255 / 10%); color: #adc2b8; font-size: .72rem; }
 .online-match-list strong { color: #eef4f0; }
 .online-shell[aria-busy="true"] button, .online-shell[aria-busy="true"] input { pointer-events: none; }
+
+/* Authoritative multiplayer campus */
+.online-match-page { overflow: hidden; color: var(--ink); background: #8fa298; }
+.online-game-shell { width: 100%; }
+.online-match-topbar { grid-template-columns: minmax(180px, .65fr) minmax(460px, 1.7fr) minmax(190px, .65fr); }
+.online-match-topbar .rankings li.is-player { border-color: #f0c55f; background: rgb(240 197 95 / 14%); }
+.online-playing-area { grid-template-columns: minmax(0, 1fr) var(--activity-rail-width, 246px); }
+.online-campus-stage { overflow: hidden; }
+.online-campus-stage::after { z-index: 70000; }
+.online-campus { inset: 0; }
+.online-campus-map {
+  top: 50%;
+  left: 50%;
+  width: min(100%, calc((100dvh - var(--header-height, 68px) - var(--bottom-hud-height, 86px)) * 1.5));
+  aspect-ratio: 3 / 2;
+  transform: translate(-50%, -50%);
+}
+.online-campus .online-building {
+  width: var(--online-building-size);
+  height: auto;
+  aspect-ratio: 1;
+  cursor: default;
+  pointer-events: none;
+  transform: translate(-50%, -93.75%);
+}
+.online-campus .online-building .building__model { inset: 0; width: 100%; height: 100%; transform: none; }
+.online-campus .online-building .building__caption {
+  top: 93%;
+  right: auto;
+  bottom: auto;
+  left: 50%;
+  width: max(118px, 100%);
+  transform: translateX(-50%);
+}
+.online-campus .online-building .building__dust { bottom: 2%; }
+.online-match-rail { min-height: 0; padding: 12px; overflow: auto; color: #eef4f0; background: rgb(18 48 38 / 91%); }
+.online-match-rail .online-message { margin: 0 0 10px; }
+.online-match-rail .online-card { padding: 15px; border-color: rgb(255 255 255 / 15%); background: rgb(255 255 255 / 7%); }
+.online-match-rail .online-card + .online-card { margin-top: 10px; }
+.online-match-rail .online-match-action { min-height: 0; }
+.online-match-rail .online-match-action h2 { font-size: 1.2rem; }
+.online-match-rail .online-match-choice { padding: 8px; font-size: .72rem; }
+.online-match-record h2:not(:first-child) { margin-top: 18px; }
+.online-match-hud { display: grid; grid-template-columns: minmax(220px, 1fr) auto; }
+.online-turn-guide { display: grid; gap: 4px; }
+.online-turn-guide small { color: #e7c56f; font-size: .62rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.online-turn-guide strong { font: 700 .95rem Georgia, serif; }
+.online-match-hud .management__summary { min-width: 440px; }
+.online-game-shell[aria-busy="true"] button, .online-game-shell[aria-busy="true"] input { pointer-events: none; opacity: .72; }
+
 @media (max-width: 680px) {
   .online-grid, .online-seats, .online-match-grid { grid-template-columns: 1fr; }
   .online-match-stats { grid-template-columns: 1fr 1fr; }
   .online-header, .online-invite, .online-lobby-actions { align-items: stretch; flex-direction: column; }
   .online-header > div:last-child, .online-invite > div:last-child, .online-lobby-actions > div:last-child { flex-wrap: wrap; }
   .online-form--inline { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 1100px) {
+  .online-match-topbar { grid-template-columns: 170px 1fr; }
+  .online-playing-area { grid-template-columns: minmax(0, 1fr) var(--activity-rail-compact-width, 208px); }
+  .online-match-hud .management__summary { min-width: 390px; }
+}
+
+@media (max-width: 760px) {
+  .online-match-page { overflow: auto; }
+  .online-game-shell { display: block; height: auto; min-height: 100dvh; }
+  .online-match-topbar { grid-template-columns: 1fr; min-height: 68px; }
+  .online-match-topbar .rankings { display: none; }
+  .online-playing-area { display: block; overflow: visible; }
+  .online-campus-stage { height: min(68vw, 460px); }
+  .online-campus-map { width: 100%; }
+  .online-match-rail { overflow: visible; }
+  .online-match-hud { grid-template-columns: 1fr; }
+  .online-match-hud .management__summary { min-width: 0; grid-template-columns: repeat(2, 1fr); justify-content: stretch; }
 }

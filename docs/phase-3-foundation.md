@@ -1,7 +1,7 @@
 # Phase 3 Multiplayer Runtime
 
-Updated: 2026-07-20
-Branch: `codex/phase-3-match-sync`
+Updated: 2026-07-21
+Branch: `codex/phase-3-campus-play`
 
 ## Decision
 
@@ -30,6 +30,10 @@ The browser never uploads the Phase 2 local save or authors canonical match stat
 - Idempotent command IDs, compare-and-swap match versions, append-only command history, and reconnectable snapshots.
 - Per-player realtime views that omit rivals' private treasury and private-card information.
 - A playable multiplayer management screen with resources, campuses, events, action explanations, waiting state, and next-turn controls.
+- A full-screen live campus board sourced only from each human's filtered authoritative observation.
+- Six manifest-positioned, uniquely illustrated buildings whose visible size and level follow current department state.
+- Runtime fountain, paths, moving students, frisbee, birds, flag, construction rise/dust, and prosperity/strain/austerity cues.
+- DUMP rankings, current-turn controls, match activity, and campus resources arranged around the no-scroll desktop board.
 - A Vercel static build that packages the solo game, multiplayer UI, engine/content assets, and pinned Supabase browser client into `dist/`.
 - A solo-game entry point linking to multiplayer without changing the validated Phase 2 mechanics.
 
@@ -94,15 +98,17 @@ Manual browser acceptance completed for this slice:
 - Both guests received allocation controls, the first waited for the second, and the second submission resolved the term once for both players.
 - Reloading a guest restored the same active match and version.
 - Stored player views exposed each player's own treasury and no opponent treasury values.
+- The live match rendered all six distinct building assets, the fountain, paths, and ten campus actors with no failed image loads.
+- The 1280x720 reference viewport matched the runtime contract: a 1034x566 stage, 849x566 board, 246px activity rail, and no page overflow.
+- Beginning a shared term kept the authoritative allocation controls available in the independently scrolling activity rail without shrinking or covering the board.
 
 ## Next implementation boundary
 
-The next multiplayer slice should bring the validated Phase 2 campus experience onto the authoritative match view:
+The authoritative campus board is now complete for the first multiplayer slice. The next implementation boundary is:
 
-1. Render each human's live campus board and condition animations from their filtered observation.
-2. Bring Briefing, Programs, Rivals, and Board Book into the multiplayer shell without exposing private state.
-3. Add the staged headline/disruption and emergency-board presentation used by solo play.
-4. Replace the fixed balanced founding plan with a synchronized pregame setup flow.
-5. Exercise elimination, human-owned pending decisions, annual reports, final results, and reconnects across a complete browser-played game.
+1. Bring Briefing, Programs, Rivals, and Board Book into the multiplayer shell without exposing private state.
+2. Add the staged headline/disruption and emergency-board presentation used by solo play.
+3. Replace the fixed balanced founding plan with a synchronized pregame setup flow.
+4. Exercise elimination, human-owned pending decisions, annual reports, final results, and reconnects across a complete browser-played game.
 
 The owner dashboard and copy-only card editor remain later Phase 3 slices. New card modifier types and continuous dollar-allocation budgeting remain separate mechanics work because either requires a complete engine/content contract and rebalance pass.

@@ -11,6 +11,7 @@ const ROUTES = new Map([
   ['/online.html', ['web/online.html', 'text/html; charset=utf-8']],
   ['/app.js', ['web/app.js', 'text/javascript; charset=utf-8']],
   ['/online-app.js', ['web/online-app.js', 'text/javascript; charset=utf-8']],
+  ['/online-campus.js', ['web/online-campus.js', 'text/javascript; charset=utf-8']],
   ['/game.js', ['web/game.js', 'text/javascript; charset=utf-8']],
   ['/presentation.js', ['web/presentation.js', 'text/javascript; charset=utf-8']],
   ['/storage.js', ['web/storage.js', 'text/javascript; charset=utf-8']],
