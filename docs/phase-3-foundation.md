@@ -107,11 +107,15 @@ Manual browser acceptance completed for the preceding campus and management slic
 - The live match rendered all six distinct building assets, the fountain, paths, and ten campus actors with no failed image loads.
 - The 1280x720 reference viewport matched the runtime contract: a 1034x566 stage, 849x566 board, 246px activity rail, and no page overflow.
 - Beginning a shared term kept the authoritative allocation controls available in the independently scrolling activity rail without shrinking or covering the board.
+- Two isolated guests saved distinct founding plans, saw both plans synchronize, and could start only after both humans marked Ready.
+- A complete live match exercised a deep-link reconnect, shared headlines, independent allocations, annual reports, repeated human-owned fire-sale decisions, austerity, elimination, spectator continuation, and synchronized final results.
+- The completed match named the same winner on both clients and explained the terminal state from each player's filtered view.
 
 ## Next implementation boundary
 
-The authoritative campus board, core management surfaces, consequential event presentations, and synchronized pregame setup are now complete. The next implementation boundary is:
+The player-facing multiplayer loop is now complete. The next implementation boundary is the owner operations surface:
 
-1. Exercise elimination, human-owned pending decisions, annual reports, final results, and reconnects across a complete browser-played game.
+1. Add an owner-only dashboard for aggregate game and player health.
+2. Add a versioned card editor that accepts only the existing modifier vocabulary and applies published decks only to new matches.
 
-The owner dashboard and copy-only card editor remain later Phase 3 slices. New card modifier types and continuous dollar-allocation budgeting remain separate mechanics work because either requires a complete engine/content contract and rebalance pass.
+See `docs/plans/2026-07-30-001-feat-owner-operations-tools-plan.md`. New modifier types and continuous dollar-allocation budgeting remain separate mechanics work because either requires a complete engine/content contract and rebalance pass.
