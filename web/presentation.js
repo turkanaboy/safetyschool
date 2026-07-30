@@ -98,10 +98,9 @@ function feedCard(event, content) {
   };
 }
 
-export function presentationRecords(events, { humanId, content }) {
+export function presentationRecords(events, { humanId, content, stagedAusterity = new Set() }) {
   const queue = [];
   const feed = [];
-  const stagedAusterity = new Set();
 
   for (const event of events) {
     if (event.type === 'headlineRevealed') {
@@ -188,7 +187,10 @@ export function annualReport(view, content, year = view.year) {
 
 export function emergencySaleOptions(view, content) {
   if (view.pendingDecision?.type !== 'forcedSale' || view.legal?.kind !== 'decision') return [];
-  const reputationLost = content.config.insolvencyAndElimination.forcedFireSaleReputationPenalty;
+  const reputationLost = Math.min(
+    content.config.insolvencyAndElimination.forcedFireSaleReputationPenalty,
+    Math.max(0, view.own.reputation - content.config.resourceBounds.reputationMin),
+  );
   return view.legal.commands.map((command) => ({
     command: structuredClone(command),
     department: command.department,

@@ -63,6 +63,20 @@ test('routine rival cards stay in the feed while severe cards and closures stage
   assert.equal(records.queue.filter((record) => record.kind === 'closure').length, 1);
 });
 
+test('rival austerity only stages once across multiplayer updates', () => {
+  const stagedAusterity = new Set();
+  const options = { humanId: 'human', content, stagedAusterity };
+  const first = presentationRecords([
+    { type: 'forcedSale', playerId: 'northbridge', department: 'marketing', recovery: 2 },
+  ], options);
+  const second = presentationRecords([
+    { type: 'forcedSale', playerId: 'northbridge', department: 'athletics', recovery: 3 },
+  ], options);
+
+  assert.equal(first.queue.filter((record) => record.kind === 'rivalAusterity').length, 1);
+  assert.equal(second.queue.filter((record) => record.kind === 'rivalAusterity').length, 0);
+});
+
 test('annual report reconciles the player year and only entitled disruption reveals', () => {
   const view = {
     own: { id: 'human', name: 'Founders Green', students: 5100, reputation: 54, treasury: 22, alumni: 900 },
@@ -87,8 +101,9 @@ test('annual report reconciles the player year and only entitled disruption reve
   assert.equal(JSON.stringify(report).includes('northbridge'), false);
 });
 
-test('emergency choices expose recovery, upkeep relief, and the shared reputation penalty', () => {
+test('emergency choices expose recovery, upkeep relief, and the actual clamped reputation loss', () => {
   const view = {
+    own: { reputation: 2 },
     legal: { kind: 'decision', commands: [
       { type: 'decision', decision: 'forcedSale', playerId: 'human', department: 'marketing', recovery: 4, upkeepSaved: 1.5 },
     ] },
@@ -101,7 +116,7 @@ test('emergency choices expose recovery, upkeep relief, and the shared reputatio
     department: 'marketing',
     recovery: 4,
     upkeepSaved: 1.5,
-    reputationLost: content.config.insolvencyAndElimination.forcedFireSaleReputationPenalty,
+    reputationLost: 2,
   });
 });
 

@@ -55,6 +55,7 @@ let presentationMatchId = null;
 let presentationVersion = null;
 let presentationQueue = [];
 let currentPresentation = null;
+let stagedAusterity = new Set();
 
 const departmentNames = {
   academics: 'Academics',
@@ -104,6 +105,7 @@ function resetMatchShell() {
   presentationVersion = null;
   presentationQueue = [];
   currentPresentation = null;
+  stagedAusterity = new Set();
   if (eventDialog.open) eventDialog.close();
   root.className = 'online-shell';
   document.body.classList.remove('online-match-page');
@@ -300,6 +302,7 @@ function enqueuePresentations(record) {
     presentationVersion = null;
     presentationQueue = [];
     currentPresentation = null;
+    stagedAusterity = new Set();
     if (eventDialog.open) eventDialog.close();
   }
   if (presentationVersion === record.version) return;
@@ -307,6 +310,7 @@ function enqueuePresentations(record) {
   const records = presentationRecords(record.view.latestEvents ?? [], {
     humanId: record.view.own.id,
     content,
+    stagedAusterity,
   });
   presentationQueue.push(...records.queue.map((item) => ({ item, view: record.view })));
   showNextPresentation();

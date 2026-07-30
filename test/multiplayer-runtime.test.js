@@ -49,6 +49,14 @@ test('multiplayer runtime creates four fair seats and player-filtered views', ()
   assert.deepEqual(nextView.history.at(-1).events[0].players, {
     'human-1': { tuition: 10, upkeep: 8, treasury: 52 },
   });
+
+  assert.equal('finalScores' in nextView, false);
+  created.state.finished = true;
+  created.state.phase = 'complete';
+  created.state.winnerId = 'human-1';
+  const finalView = matchViews(created.state, created.meta, content)['human-1'];
+  assert.deepEqual(Object.keys(finalView.finalScores).sort(), created.state.players.map(({ id }) => id).sort());
+  assert.ok(Object.values(finalView.finalScores).every(Number.isFinite));
 });
 
 test('a term waits for every active human allocation before resolving', () => {

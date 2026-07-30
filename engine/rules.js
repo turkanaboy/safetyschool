@@ -1039,6 +1039,9 @@ export function observeGame(state, playerId, content) {
     pendingDecision: state.pendingDecision?.playerId === playerId ? structuredClone(state.pendingDecision) : null,
     finished: state.finished,
     winnerId: state.winnerId,
+    ...(state.finished ? {
+      finalScores: Object.fromEntries(state.players.map((player) => [player.id, healthScore(player, content.config)])),
+    } : {}),
   };
 }
 
