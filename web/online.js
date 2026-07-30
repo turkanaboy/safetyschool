@@ -85,8 +85,12 @@ export function createOnlineService(client) {
 
     async matchViews() {
       return value(await client.from('match_views')
-        .select('match_id,version,view,updated_at,matches(status,updated_at)')
+        .select('match_id,version,view,updated_at,matches(status,updated_at,content_set_id)')
         .order('updated_at', { ascending: false }));
+    },
+
+    async matchContent(matchId) {
+      return value(await client.rpc('get_match_card_set', { p_match_id: matchId }));
     },
 
     async startMatch(lobbyId) {

@@ -47,6 +47,7 @@ let characterRuntime = null;
 let content = null;
 let campusLoad = null;
 let campusAssetError = '';
+let contentMatchId = null;
 let previousDepartmentLevels = null;
 let stopCampusMotion = null;
 let activeManagementSection = null;
@@ -145,7 +146,8 @@ function resetMatchShell() {
 }
 
 function ensureCampusAssets() {
-  if (campusLoad) return campusLoad;
+  if (campusLoad && contentMatchId === activeMatchId) return campusLoad;
+  contentMatchId = activeMatchId;
   campusLoad = Promise.all([
     fetch('/assets/university-quad/Runtime/runtime-manifest.json'),
     fetch('/assets/university-quad/Runtime/Characters/student-actions.json'),
@@ -153,10 +155,16 @@ function ensureCampusAssets() {
     fetch('/cards.json'),
   ]).then(async (responses) => {
     if (responses.some((response) => !response.ok)) throw new Error('The campus art package could not be loaded.');
-    const [runtime, characters, config, cards] = await Promise.all(responses.map((response) => response.json()));
+    const [runtime, characters, config, bundledCards] = await Promise.all(responses.map((response) => response.json()));
+    const pinned = activeMatchId ? await online.matchContent(activeMatchId) : null;
+    const cards = pinned?.deck ?? bundledCards;
+    const validated = validateContent(config, cards);
+    if (pinned?.contentHash && validated.identity.cardsDigest !== pinned.contentHash) {
+      throw new Error('The match card set did not pass its identity check.');
+    }
     campusRuntime = runtime;
     characterRuntime = characters;
-    content = validateContent(config, cards);
+    content = validated;
     campusAssetError = '';
     render();
   }).catch((error) => {
@@ -625,6 +633,7 @@ async function refresh() {
     setOnlineUrl();
   }
   subscribe();
+  if (activeMatchId) await ensureCampusAssets();
   render();
 }
 

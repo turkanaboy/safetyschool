@@ -1,7 +1,7 @@
 # Phase 3 Multiplayer Runtime
 
 Updated: 2026-07-30
-Branch: `codex/phase-3-pregame-setup`
+Branch: `codex/phase-3-owner-operations`
 
 ## Decision
 
@@ -42,6 +42,11 @@ The browser never uploads the Phase 2 local save or authors canonical match stat
 - Recoverable Emergency Board Meetings with authoritative sale recovery, upkeep relief, and reputation costs; players can return to campus and reopen the meeting from Briefing.
 - A Vercel static build that packages the solo game, multiplayer UI, engine/content assets, and pinned Supabase browser client into `dist/`.
 - A solo-game entry point linking to multiplayer without changing the validated Phase 2 mechanics.
+- A separate `/owner.html` session with passwordless sign-in, server-enforced owner authorization, and aggregate lobby, match, completion, duration, and anonymous-identity metrics.
+- An owner card studio for whole-deck drafts, structured card editing, canonical path-specific validation, and immutable publication.
+- A bounded three-game deterministic publish smoke; the full Phase 1 simulation remains the engine/content release gate.
+- One active-card pointer with rollback to any prior immutable published set.
+- Atomic card-set pinning when a match starts, member-only pinned-deck reads, and bundled-content fallback for pre-migration matches.
 
 ## Database contract
 
@@ -56,6 +61,9 @@ Applied Supabase migrations live in `supabase/migrations/` and create:
 - `match_views`: one filtered observation per human, published through Realtime.
 - `match_actions` and `match_submissions`: idempotent command history and current-term human allocations.
 - `commit_match_start`, `store_match_submission`, `update_match_views`, and `commit_match_transition`: service-role-only transactional mutations called by `match-command`.
+- `card_sets` and `active_card_set`: private drafts, immutable published decks, validation evidence, and the active version for future matches.
+- `owner_dashboard`: a permanent-owner-only aggregate operations RPC.
+- `get_match_card_set`: a member-checked read of only the deck pinned to the requested match.
 
 All public tables have row-level security enabled. Access by the unauthenticated Postgres `anon` role and mutation RPC execution are revoked. Supabase Auth guest users receive unique IDs and the `authenticated` role, so they can read only their own profile, shared lobby records, match membership, and their own filtered match view. Browser clients cannot insert, update, or delete match rows directly.
 
@@ -69,8 +77,10 @@ In Supabase Authentication settings:
 
 1. Enable Anonymous Sign-Ins under Auth providers.
 2. Keep the production Site URL set to `https://safetyschoolgame.com`.
-3. Before sharing the game publicly, configure Cloudflare Turnstile or invisible CAPTCHA and pass its token to `signInAnonymously`; the initial private playtest does not include a CAPTCHA key.
-4. Do not enable time-based anonymous-user deletion until match expiration exists. Deleting a guest who is seated in an active asynchronous match would remove that player's view and leave the match waiting for a player who can no longer reconnect.
+3. Add `https://safetyschoolgame.com/owner.html` and the current Vercel preview pattern to the redirect allow-list before testing owner magic links.
+4. Confirm the designated permanent account has a `profiles.role = 'owner'` row before exposing the owner route.
+5. Before sharing the game publicly, configure Cloudflare Turnstile or invisible CAPTCHA and pass its token to `signInAnonymously`; the initial private playtest does not include a CAPTCHA key.
+6. Do not enable time-based anonymous-user deletion until match expiration exists. Deleting a guest who is seated in an active asynchronous match would remove that player's view and leave the match waiting for a player who can no longer reconnect.
 
 The Supabase URL and publishable key are intentionally browser-visible public configuration. Never add a secret or service-role key to this repository, the browser bundle, or a `VITE_`/`NEXT_PUBLIC_`-style environment variable.
 
@@ -80,7 +90,7 @@ The GitHub-connected Vercel project is `safetyschool`. `vercel.json` runs `npm r
 
 Before production testing:
 
-1. Confirm a branch preview returns HTTP 200 for `/` and `/online.html`.
+1. Confirm a branch preview returns HTTP 200 for `/`, `/online.html`, and `/owner.html`.
 2. Attach `safetyschoolgame.com` to the Vercel project and apply the DNS records Vercel provides.
 3. Promote or merge only after the preview passes the browser checks.
 4. Update Supabase Site URL and redirect allow-list entries to the final production URLs.
@@ -94,7 +104,7 @@ npm.cmd run validate:content
 npm.cmd test
 ```
 
-The focused Phase 3 checks cover guest-session metadata, lobby commands, authoritative runtime and service transitions, cumulative filtered history, private observations, multiplayer management and event views, recoverable emergency decisions, match command payloads, online static routes, and the existing campus shell contract.
+The focused Phase 3 checks cover guest-session metadata, lobby commands, authoritative runtime and service transitions, cumulative filtered history, private observations, multiplayer management and event views, recoverable emergency decisions, owner authorization, aggregate metrics, immutable card drafts, publish smoke evidence, match-content identity, online static routes, and the existing campus shell contract.
 
 Manual browser acceptance completed for the preceding campus and management slices:
 
@@ -111,11 +121,13 @@ Manual browser acceptance completed for the preceding campus and management slic
 - A complete live match exercised a deep-link reconnect, shared headlines, independent allocations, annual reports, repeated human-owned fire-sale decisions, austerity, elimination, spectator continuation, and synchronized final results.
 - The completed match named the same winner on both clients and explained the terminal state from each player's filtered view.
 
-## Next implementation boundary
+## Owner operations release checks
 
-The player-facing multiplayer loop is now complete. The next implementation boundary is the owner operations surface:
+The Phase 3 implementation is complete after these live checks:
 
-1. Add an owner-only dashboard for aggregate game and player health.
-2. Add a versioned card editor that accepts only the existing modifier vocabulary and applies published decks only to new matches.
+1. Complete a magic-link sign-in on the production owner route and reconcile its totals against the database.
+2. Create and validate a draft, confirm an invalid modifier is rejected, then publish a copy-only card change.
+3. Start one match before and one match after activation; confirm each reconnects with its original pinned content hash.
+4. Reactivate the prior published set and confirm only future matches use the rollback.
 
-See `docs/plans/2026-07-30-001-feat-owner-operations-tools-plan.md`. New modifier types and continuous dollar-allocation budgeting remain separate mechanics work because either requires a complete engine/content contract and rebalance pass.
+Rollback is an activation-pointer change through the owner-content boundary; published rows are never edited or deleted. New modifier types and continuous dollar-allocation budgeting remain separate mechanics work because either requires a complete engine/content contract and rebalance pass.
