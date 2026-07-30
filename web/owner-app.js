@@ -209,6 +209,7 @@ async function loadDashboard(days = 30) {
 }
 
 async function loadContent() {
+  if (busy) return;
   busy = true;
   message = '';
   render();
