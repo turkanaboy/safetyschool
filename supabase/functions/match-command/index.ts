@@ -21,11 +21,11 @@ function value(result) {
   return result.data;
 }
 
-function createStore(admin) {
+function createStore(admin, contentSetId) {
   return {
     async getLobby(lobbyId) {
       return value(await admin.from('lobbies')
-        .select('id,host_user_id,status,lobby_members(user_id,seat_index,is_ready,profiles(display_name))')
+        .select('id,host_user_id,status,lobby_members(user_id,seat_index,is_ready,setup)')
         .eq('id', lobbyId).single());
     },
 
@@ -38,15 +38,22 @@ function createStore(admin) {
         p_meta: payload.meta,
         p_seats: payload.seats,
         p_views: payload.views,
+        p_content_set_id: contentSetId,
       }))[0];
     },
 
     async getView(matchId, userId) {
       const row = value(await admin.from('match_views')
-        .select('match_id,user_id,version,view,matches(status)')
+        .select('match_id,user_id,version,view,matches(status,content_set_id)')
         .eq('match_id', matchId).eq('user_id', userId).single());
       const match = Array.isArray(row.matches) ? row.matches[0] : row.matches;
-      return { matchId: row.match_id, version: row.version, status: match?.status, view: row.view };
+      return {
+        matchId: row.match_id,
+        version: row.version,
+        status: match?.status,
+        contentSetId: match?.content_set_id,
+        view: row.view,
+      };
     },
 
     async getRequest(matchId, requestId) {
@@ -104,7 +111,27 @@ function createStore(admin) {
   };
 }
 
-const content = validateContent(config, cards);
+const bundledContent = validateContent(config, cards);
+
+async function matchContent(admin, body) {
+  let set;
+  if (body?.action === 'start') {
+    const active = value(await admin.rpc('ensure_active_card_set', {
+      p_deck: bundledContent.cards,
+      p_content_hash: bundledContent.identity.cardsDigest,
+      p_validation: { kind: 'bundled', passedAt: new Date().toISOString() },
+    }))[0];
+    return { contentSetId: active.id, content: validateContent(config, active.deck) };
+  }
+
+  const row = value(await admin.from('matches')
+    .select('content_set_id,card_sets(deck,content_hash)').eq('id', body?.matchId).single());
+  if (!row.content_set_id) return { contentSetId: null, content: bundledContent };
+  set = Array.isArray(row.card_sets) ? row.card_sets[0] : row.card_sets;
+  const content = validateContent(config, set.deck);
+  if (content.identity.cardsDigest !== set.content_hash) throw new Error('Pinned card set hash is inconsistent.');
+  return { contentSetId: row.content_set_id, content };
+}
 
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -126,8 +153,10 @@ Deno.serve(async (request) => {
     const admin = createClient(url, configuredKey('SUPABASE_SECRET_KEYS', 'SUPABASE_SERVICE_ROLE_KEY'), {
       auth: { persistSession: false },
     });
-    const service = createMatchService({ content, store: createStore(admin) });
-    return Response.json(await service.handle(user.id, await request.json()), { headers: corsHeaders });
+    const body = await request.json();
+    const { contentSetId, content } = await matchContent(admin, body);
+    const service = createMatchService({ content, store: createStore(admin, contentSetId) });
+    return Response.json(await service.handle(user.id, body), { headers: corsHeaders });
   } catch (error) {
     console.error(error);
     return Response.json({ error: error?.message ?? 'Match command failed.' }, { status: 400, headers: corsHeaders });

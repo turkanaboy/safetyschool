@@ -2,13 +2,12 @@ import { createAgent } from '../agents/index.js';
 import { canonicalStringify } from '../engine/content.js';
 import { advanceGame, createGame, legalActions, observeGame } from '../engine/index.js';
 import { deriveSeed } from '../engine/rng.js';
-import { normalizeHistoryEvents, RIVAL_SCHOOLS } from '../web/game.js';
-
-export const DEFAULT_FOUNDING_UPGRADES = Object.freeze({
-  academics: 1,
-  studentAffairs: 1,
-  administration: 1,
-});
+import {
+  CAMPUS_COLORS,
+  MASCOTS,
+  normalizeHistoryEvents,
+  RIVAL_SCHOOLS,
+} from '../web/game.js';
 
 function requireMember(meta, userId) {
   const member = meta.humans.find((candidate) => candidate.userId === userId);
@@ -65,8 +64,10 @@ export function createMatchRuntime({ seed, members }, content) {
   const users = new Set();
   for (const member of members) {
     if (!member || typeof member.userId !== 'string' || !member.userId) throw new TypeError('member.userId: required');
-    if (typeof member.name !== 'string' || !member.name.trim()) throw new TypeError('member.name: required');
     if (!Number.isInteger(member.seat) || member.seat < 0 || member.seat > 3) throw new TypeError('member.seat: expected 0 through 3');
+    if (typeof member.setup?.schoolName !== 'string' || !member.setup.schoolName.trim()) throw new TypeError('member.setup.schoolName: required');
+    if (!MASCOTS.some(({ id }) => id === member.setup.mascot)) throw new TypeError('member.setup.mascot: unknown mascot');
+    if (!CAMPUS_COLORS.some(({ id }) => id === member.setup.color)) throw new TypeError('member.setup.color: unknown color');
     if (seats.has(member.seat) || users.has(member.userId)) throw new TypeError('members: seats and users must be unique');
     seats.add(member.seat);
     users.add(member.userId);
@@ -75,13 +76,16 @@ export function createMatchRuntime({ seed, members }, content) {
   const humans = members.map((member) => ({
     userId: member.userId,
     playerId: member.userId,
-    name: member.name.trim(),
+    name: member.setup.schoolName.trim(),
     seat: member.seat,
+    mascot: member.setup.mascot,
+    color: member.setup.color,
+    upgrades: structuredClone(member.setup.upgrades),
   })).sort((a, b) => a.seat - b.seat);
   const rivals = [];
   const players = Array.from({ length: 4 }, (_, seat) => {
     const human = humans.find((member) => member.seat === seat);
-    if (human) return { id: human.playerId, name: human.name, upgrades: structuredClone(DEFAULT_FOUNDING_UPGRADES) };
+    if (human) return { id: human.playerId, name: human.name, upgrades: structuredClone(human.upgrades) };
     const school = RIVAL_SCHOOLS[rivals.length];
     const rival = {
       ...structuredClone(school),
@@ -115,6 +119,7 @@ export function matchViews(state, meta, content, { submittedUserIds = [], events
     return [member.userId, {
       ...observation,
       roundsPerYear: content.config.gameLength.roundsPerYear,
+      identity: { mascot: member.mascot, color: member.color },
       legal,
       submitted: submitted.has(member.userId),
       waitingFor,
@@ -159,7 +164,7 @@ export function validateHumanAllocation(state, meta, actorUserId, actions, conte
     if (!option) throw new Error('An allocation is no longer legal.');
     cost += option.cost;
   }
-  if (cost > observationTreasury(state, member.playerId) + 1e-9) throw new Error('Allocations exceed the available treasury.');
+  if (cost !== 0 && cost > observationTreasury(state, member.playerId) + 1e-9) throw new Error('Allocations exceed the available treasury.');
   return structuredClone(actions);
 }
 

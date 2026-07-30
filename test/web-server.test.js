@@ -35,10 +35,14 @@ test('play server serves only the browser game graph with correct HTTP behavior'
     const routes = [
       ['/', 'text/html'],
       ['/online.html', 'text/html'],
+      ['/owner.html', 'text/html'],
       ['/styles.css', 'text/css'],
       ['/online.css', 'text/css'],
+      ['/owner.css', 'text/css'],
       ['/app.js', 'text/javascript'],
       ['/online-app.js', 'text/javascript'],
+      ['/owner-app.js', 'text/javascript'],
+      ['/owner.js', 'text/javascript'],
       ['/online-campus.js', 'text/javascript'],
       ['/online-management.js', 'text/javascript'],
       ['/game.js', 'text/javascript'],
@@ -143,6 +147,8 @@ test('multiplayer stages resolved events and keeps emergency meetings recoverabl
     assert.match(app.body, /Emergency Board Meeting/);
     assert.match(app.body, /emergencySaleOptions/);
     assert.match(app.body, /data-online-section="briefing"/);
+    assert.match(app.body, /id="lobby-setup-form"/);
+    assert.match(app.body, /Assign exactly three free founding levels/);
   });
 });
 
