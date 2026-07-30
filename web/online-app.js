@@ -1,6 +1,6 @@
 import { createClient } from '/vendor/supabase.js';
 import { validateContent } from '/engine/content.js';
-import { dumpRankings } from '/game.js';
+import { CAMPUS_COLORS, MASCOTS, dumpRankings } from '/game.js';
 import { renderOnlineManagement } from '/online-management.js';
 import {
   annualReport,
@@ -47,6 +47,7 @@ let characterRuntime = null;
 let content = null;
 let campusLoad = null;
 let campusAssetError = '';
+let contentMatchId = null;
 let previousDepartmentLevels = null;
 let stopCampusMotion = null;
 let activeManagementSection = null;
@@ -55,6 +56,10 @@ let presentationMatchId = null;
 let presentationVersion = null;
 let presentationQueue = [];
 let currentPresentation = null;
+let stagedAusterity = new Set();
+let lobbySetupId = null;
+let lobbySetupDraft = null;
+let lobbySetupDirty = false;
 
 const departmentNames = {
   academics: 'Academics',
@@ -93,6 +98,33 @@ function profileOf(member) {
   return Array.isArray(member.profiles) ? member.profiles[0] : member.profiles;
 }
 
+function defaultLobbySetup() {
+  return {
+    schoolName: profile?.display_name ?? 'Safety School',
+    mascot: MASCOTS[0].id,
+    color: CAMPUS_COLORS[0].id,
+    upgrades: { academics: 1, studentAffairs: 1, administration: 1 },
+  };
+}
+
+function syncLobbySetupDraft(lobby, member) {
+  if (lobbySetupId !== lobby.id) {
+    lobbySetupId = lobby.id;
+    lobbySetupDraft = structuredClone(member?.setup ?? defaultLobbySetup());
+    lobbySetupDirty = false;
+  } else if (!lobbySetupDirty && member?.setup) {
+    lobbySetupDraft = structuredClone(member.setup);
+  }
+}
+
+function setupSummary(setup) {
+  if (!setup) return 'Founding plan not saved';
+  return Object.entries(setup.upgrades)
+    .filter(([, levels]) => levels > 0)
+    .map(([department, levels]) => `${departmentNames[department]} +${levels}`)
+    .join(' / ');
+}
+
 function renderMessage() {
   return message ? `<p class="online-message" role="status">${escapeHtml(message)}</p>` : '';
 }
@@ -104,15 +136,18 @@ function resetMatchShell() {
   presentationVersion = null;
   presentationQueue = [];
   currentPresentation = null;
+  stagedAusterity = new Set();
   if (eventDialog.open) eventDialog.close();
   root.className = 'online-shell';
   document.body.classList.remove('online-match-page');
+  delete document.body.dataset.color;
   clearCampusEnvironment();
   previousDepartmentLevels = null;
 }
 
 function ensureCampusAssets() {
-  if (campusLoad) return campusLoad;
+  if (campusLoad && contentMatchId === activeMatchId) return campusLoad;
+  contentMatchId = activeMatchId;
   campusLoad = Promise.all([
     fetch('/assets/university-quad/Runtime/runtime-manifest.json'),
     fetch('/assets/university-quad/Runtime/Characters/student-actions.json'),
@@ -120,10 +155,16 @@ function ensureCampusAssets() {
     fetch('/cards.json'),
   ]).then(async (responses) => {
     if (responses.some((response) => !response.ok)) throw new Error('The campus art package could not be loaded.');
-    const [runtime, characters, config, cards] = await Promise.all(responses.map((response) => response.json()));
+    const [runtime, characters, config, bundledCards] = await Promise.all(responses.map((response) => response.json()));
+    const pinned = activeMatchId ? await online.matchContent(activeMatchId) : null;
+    const cards = pinned?.deck ?? bundledCards;
+    const validated = validateContent(config, cards);
+    if (pinned?.contentHash && validated.identity.cardsDigest !== pinned.contentHash) {
+      throw new Error('The match card set did not pass its identity check.');
+    }
     campusRuntime = runtime;
     characterRuntime = characters;
-    content = validateContent(config, cards);
+    content = validated;
     campusAssetError = '';
     render();
   }).catch((error) => {
@@ -300,6 +341,7 @@ function enqueuePresentations(record) {
     presentationVersion = null;
     presentationQueue = [];
     currentPresentation = null;
+    stagedAusterity = new Set();
     if (eventDialog.open) eventDialog.close();
   }
   if (presentationVersion === record.version) return;
@@ -307,6 +349,7 @@ function enqueuePresentations(record) {
   const records = presentationRecords(record.view.latestEvents ?? [], {
     humanId: record.view.own.id,
     content,
+    stagedAusterity,
   });
   presentationQueue.push(...records.queue.map((item) => ({ item, view: record.view })));
   showNextPresentation();
@@ -357,13 +400,23 @@ function renderLobbyList() {
 function renderLobby(lobby) {
   const members = lobby.lobby_members ?? [];
   const ownMember = members.find((member) => member.user_id === session.user.id);
+  syncLobbySetupDraft(lobby, ownMember);
   const isHost = lobby.host_user_id === session.user.id;
-  const canStart = isHost && members.length >= 2 && members.every((member) => member.is_ready);
+  const canStart = isHost && members.length >= 2 && members.every((member) => member.setup && member.is_ready);
   const seats = Array.from({ length: 4 }, (_, seat) => {
     const member = members.find((candidate) => candidate.seat_index === seat);
     if (!member) return `<li class="online-seat online-seat--ai"><span>AI</span><div><strong>AI campus</strong><small>Fills this seat when play begins</small></div></li>`;
     const memberProfile = profileOf(member);
+    if (member.setup) {
+      const mascot = MASCOTS.find(({ id }) => id === member.setup.mascot);
+      return `<li class="online-seat"><span>${escapeHtml(mascot?.mark ?? 'SS')}</span><div><strong>${escapeHtml(member.setup.schoolName)}${member.user_id === lobby.host_user_id ? ' / Host' : ''}${member.user_id === session.user.id ? ' / You' : ''}</strong><small>${escapeHtml(setupSummary(member.setup))}</small><small>${member.is_ready ? 'Ready' : 'Plan saved / not ready'}</small></div></li>`;
+    }
     return `<li class="online-seat"><span>${escapeHtml((memberProfile?.display_name ?? 'P').slice(0, 2).toUpperCase())}</span><div><strong>${escapeHtml(memberProfile?.display_name ?? 'President')}${member.user_id === lobby.host_user_id ? ' · Host' : ''}${member.user_id === session.user.id ? ' · You' : ''}</strong><small>${member.is_ready ? 'Ready' : 'Not ready'}</small></div></li>`;
+  }).join('');
+  const setupTotal = Object.values(lobbySetupDraft.upgrades).reduce((sum, levels) => sum + levels, 0);
+  const setupRows = Object.keys(departmentNames).map((department) => {
+    const levels = lobbySetupDraft.upgrades[department] ?? 0;
+    return `<div class="online-setup-level"><span><strong>${departmentNames[department]}</strong><small>Starts at Level ${levels + 1}</small></span><span><button type="button" data-lobby-setup-department="${department}" data-lobby-setup-delta="-1" aria-label="Remove a free ${departmentNames[department]} level" ${levels === 0 ? 'disabled' : ''}>-</button><output>${levels}</output><button type="button" data-lobby-setup-department="${department}" data-lobby-setup-delta="1" aria-label="Add a free ${departmentNames[department]} level" ${levels === 2 || setupTotal === 3 ? 'disabled' : ''}>+</button></span></div>`;
   }).join('');
   const shareUrl = `${location.origin}/online.html?join=${lobby.invite_code}`;
   root.innerHTML = `
@@ -371,8 +424,19 @@ function renderLobby(lobby) {
     ${renderMessage()}
     <section class="online-card online-invite"><div><h2>Invite presidents</h2><p>Share this code or link. Lobby membership is protected by row-level security.</p></div><div><strong>${escapeHtml(lobby.invite_code)}</strong><button class="primary-button" type="button" data-online-action="copy-invite" data-share-url="${escapeHtml(shareUrl)}">Copy invite link</button></div></section>
     <ol class="online-seats">${seats}</ol>
-    <section class="online-card online-lobby-actions"><div><h2>${members.length} human player${members.length === 1 ? '' : 's'}</h2><p>${canStart ? 'Everyone is ready. Start the game when you are set.' : 'At least two humans must join and every human must be ready. Empty seats become AI schools.'}</p></div><div><button class="primary-button" type="button" data-online-action="toggle-ready">${ownMember?.is_ready ? 'Mark not ready' : 'Mark ready'}</button>${isHost ? `<button class="primary-button" type="button" data-online-action="start-match" ${canStart ? '' : 'disabled'}>Start game</button>` : ''}<button class="danger-button" type="button" data-online-action="leave-lobby">${isHost ? 'Cancel lobby' : 'Leave lobby'}</button></div></section>
-    <p class="online-note">All campuses begin with the same balanced founding plan: +1 Academics, +1 Student Affairs, and +1 Administration.</p>`;
+    <section class="online-card online-setup-card">
+      <div><p class="eyebrow">Your campus</p><h2>Founding plan</h2><p>Name your school and assign exactly three free levels. No department can receive more than two.</p></div>
+      <form id="lobby-setup-form" class="online-setup-form">
+        <label class="online-setup-name">School name<input name="schoolName" maxlength="42" required value="${escapeHtml(lobbySetupDraft.schoolName)}" autocomplete="organization"></label>
+        <fieldset><legend>Mascot</legend><div class="online-setup-presets">${MASCOTS.map((mascot) => `<label><input type="radio" name="mascot" value="${mascot.id}" ${lobbySetupDraft.mascot === mascot.id ? 'checked' : ''}><span><b>${mascot.mark}</b>${mascot.name}</span></label>`).join('')}</div></fieldset>
+        <fieldset><legend>Campus colors</legend><div class="online-setup-presets">${CAMPUS_COLORS.map((color) => `<label><input type="radio" name="color" value="${color.id}" ${lobbySetupDraft.color === color.id ? 'checked' : ''}><span>${color.name}</span></label>`).join('')}</div></fieldset>
+        <section class="online-setup-levels"><header><strong>Founding investments</strong><output>${setupTotal}/3 placed</output></header>${setupRows}</section>
+        <button class="primary-button" type="submit" ${!lobbySetupDirty && ownMember?.setup ? 'disabled' : ''}>${ownMember?.setup ? 'Save changes' : 'Save founding plan'}</button>
+      </form>
+    </section>
+    <section class="online-card online-lobby-actions"><div><h2>${members.length} human player${members.length === 1 ? '' : 's'}</h2><p>${canStart ? 'Everyone is ready. Start the game when you are set.' : 'Each human must save a founding plan and mark ready. Empty seats become AI schools.'}</p></div><div><button class="primary-button" type="button" data-online-action="toggle-ready">${ownMember?.is_ready ? 'Mark not ready' : 'Mark ready'}</button>${isHost ? `<button class="primary-button" type="button" data-online-action="start-match" ${canStart ? '' : 'disabled'}>Start game</button>` : ''}<button class="danger-button" type="button" data-online-action="leave-lobby">${isHost ? 'Cancel lobby' : 'Leave lobby'}</button></div></section>
+    <p class="online-note">Saving a changed founding plan automatically clears Ready so every player sees the final setup before play begins.</p>`;
+  root.querySelector('[data-online-action="toggle-ready"]').disabled = !ownMember?.setup || lobbySetupDirty;
 }
 
 function actionLabel(option, view) {
@@ -425,6 +489,7 @@ function renderMatch(record) {
   stopCampusMotion?.();
   stopCampusMotion = null;
   const view = record.view;
+  document.body.dataset.color = view.identity?.color ?? 'pine';
   const emergency = view.pendingDecision?.type === 'forcedSale';
   if (emergency && activeManagementSection !== 'briefing') activeManagementSection = null;
   const status = matchStatus(record) ?? record.status;
@@ -568,6 +633,7 @@ async function refresh() {
     setOnlineUrl();
   }
   subscribe();
+  if (activeMatchId) await ensureCampusAssets();
   render();
 }
 
@@ -623,6 +689,16 @@ root.addEventListener('submit', (event) => {
       activeLobbyId = lobby.id;
       setOnlineUrl({ lobby });
       await refresh();
+    } else if (event.target.id === 'lobby-setup-form') {
+      const total = Object.values(lobbySetupDraft.upgrades).reduce((sum, levels) => sum + levels, 0);
+      if (total !== 3) throw new Error('Assign exactly three free founding levels.');
+      lobbySetupDraft.schoolName = String(form.get('schoolName') ?? '').trim();
+      lobbySetupDraft.mascot = String(form.get('mascot') ?? '');
+      lobbySetupDraft.color = String(form.get('color') ?? '');
+      const member = await online.saveSetup(activeLobbyId, lobbySetupDraft);
+      lobbySetupDraft = structuredClone(member.setup);
+      lobbySetupDirty = false;
+      await refresh();
     } else if (event.target.id === 'match-allocation-form') {
       const record = matchRecords.find((candidate) => candidate.match_id === activeMatchId);
       const actions = form.getAll('actionIndex').map((index) => record.view.legal.actions[Number(index)].action);
@@ -637,7 +713,31 @@ root.addEventListener('submit', (event) => {
   });
 });
 
+root.addEventListener('input', (event) => {
+  if (event.target.form?.id !== 'lobby-setup-form') return;
+  lobbySetupDirty = true;
+  if (event.target.name === 'schoolName') lobbySetupDraft.schoolName = event.target.value;
+  if (event.target.name === 'mascot') lobbySetupDraft.mascot = event.target.value;
+  if (event.target.name === 'color') lobbySetupDraft.color = event.target.value;
+  root.querySelector('#lobby-setup-form button[type="submit"]').disabled = false;
+  root.querySelector('[data-online-action="toggle-ready"]').disabled = true;
+});
+
 root.addEventListener('click', (event) => {
+  const setupButton = event.target.closest('[data-lobby-setup-department]');
+  if (setupButton) {
+    const department = setupButton.dataset.lobbySetupDepartment;
+    const delta = Number(setupButton.dataset.lobbySetupDelta);
+    const total = Object.values(lobbySetupDraft.upgrades).reduce((sum, levels) => sum + levels, 0);
+    const next = (lobbySetupDraft.upgrades[department] ?? 0) + delta;
+    if (next >= 0 && next <= 2 && (delta < 0 || total < 3)) {
+      lobbySetupDraft.upgrades[department] = next;
+      lobbySetupDirty = true;
+      render();
+      root.querySelector(`[data-lobby-setup-department="${department}"][data-lobby-setup-delta="${delta}"]`)?.focus();
+    }
+    return;
+  }
   const rival = event.target.closest('[data-online-rival]');
   if (rival) {
     selectedOnlineRival = rival.dataset.onlineRival;
@@ -673,6 +773,7 @@ root.addEventListener('click', (event) => {
       render();
     } else if (button.dataset.onlineAction === 'back-to-lobbies') {
       activeLobbyId = null;
+      lobbySetupId = null;
       setOnlineUrl();
       subscribe();
       render();
@@ -690,6 +791,7 @@ root.addEventListener('click', (event) => {
       const started = await online.startMatch(activeLobbyId);
       activeMatchId = started.matchId;
       activeLobbyId = null;
+      lobbySetupId = null;
       setOnlineUrl({ match: { matchId: activeMatchId } });
       await refresh();
     } else if (button.dataset.onlineAction === 'begin-term') {
@@ -715,6 +817,7 @@ root.addEventListener('click', (event) => {
     } else if (button.dataset.onlineAction === 'leave-lobby') {
       await online.leaveLobby(activeLobbyId);
       activeLobbyId = null;
+      lobbySetupId = null;
       setOnlineUrl();
       await refresh();
     } else if (button.dataset.onlineAction === 'copy-invite') {

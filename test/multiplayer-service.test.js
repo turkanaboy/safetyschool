@@ -11,8 +11,8 @@ const lobby = {
   host_user_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   status: 'waiting',
   lobby_members: [
-    { user_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', seat_index: 0, is_ready: true, profiles: { display_name: 'Founders Green' } },
-    { user_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', seat_index: 1, is_ready: true, profiles: { display_name: 'Safety State' } },
+    { user_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', seat_index: 0, is_ready: true, setup: { schoolName: 'Founders Green', mascot: 'owl', color: 'pine', upgrades: { academics: 2, administration: 1 } }, profiles: { display_name: 'Founders Green' } },
+    { user_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', seat_index: 1, is_ready: true, setup: { schoolName: 'Safety State', mascot: 'bison', color: 'lake', upgrades: { admissions: 2, studentAffairs: 1 } }, profiles: { display_name: 'Safety State' } },
   ],
 };
 
@@ -32,12 +32,22 @@ test('match service starts only a ready host lobby and stores private views', as
     service.handle('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', { action: 'start', lobbyId: lobby.id }),
     /host/i,
   );
+  const unconfigured = createMatchService({
+    content,
+    store: { async getLobby() { return { ...lobby, lobby_members: lobby.lobby_members.map((member) => ({ ...member, setup: null })) }; } },
+  });
+  await assert.rejects(
+    unconfigured.handle(lobby.host_user_id, { action: 'start', lobbyId: lobby.id }),
+    /founding plan/i,
+  );
   const response = await service.handle(lobby.host_user_id, { action: 'start', lobbyId: lobby.id });
 
   assert.equal(response.matchId, '22222222-2222-4222-8222-222222222222');
   assert.equal(started.seats.length, 4);
   assert.deepEqual(Object.keys(started.views).sort(), lobby.lobby_members.map(({ user_id }) => user_id).sort());
   assert.equal('treasury' in started.views[lobby.host_user_id].opponents[0], false);
+  assert.equal(started.state.players[0].name, 'Founders Green');
+  assert.equal(started.state.players[0].departments.academics, 3);
 });
 
 test('match service rejects malformed command identifiers before persistence', async () => {
@@ -70,8 +80,8 @@ test('match service treats a raced begin-term command as already advanced', asyn
     seed: 42,
     members: lobby.lobby_members.map((member) => ({
       userId: member.user_id,
-      name: member.profiles.display_name,
       seat: member.seat_index,
+      setup: member.setup,
     })),
   }, content);
   const started = startMatchRound(created.state, created.meta, lobby.host_user_id, content);
@@ -101,8 +111,8 @@ test('match service resolves an AI-only term after every human is eliminated', a
     seed: 42,
     members: lobby.lobby_members.map((member) => ({
       userId: member.user_id,
-      name: member.profiles.display_name,
       seat: member.seat_index,
+      setup: member.setup,
     })),
   }, content);
   created.state.players[0].active = false;
@@ -138,8 +148,8 @@ test('match service resumes a stored allocation retry before its transition comm
     seed: 42,
     members: lobby.lobby_members.map((member) => ({
       userId: member.user_id,
-      name: member.profiles.display_name,
       seat: member.seat_index,
+      setup: member.setup,
     })),
   }, content);
   const started = startMatchRound(created.state, created.meta, lobby.host_user_id, content);

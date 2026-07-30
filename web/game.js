@@ -11,6 +11,18 @@ export const RIVAL_SCHOOLS = Object.freeze([
   Object.freeze({ id: 'bellwether', name: 'Bellwether Institute', archetype: 'oracle' }),
 ]);
 
+export const MASCOTS = Object.freeze([
+  Object.freeze({ id: 'owl', name: 'Night Owl', mark: 'OW' }),
+  Object.freeze({ id: 'fox', name: 'Red Fox', mark: 'FX' }),
+  Object.freeze({ id: 'bison', name: 'Golden Bison', mark: 'BI' }),
+]);
+
+export const CAMPUS_COLORS = Object.freeze([
+  Object.freeze({ id: 'pine', name: 'Pine & Gold' }),
+  Object.freeze({ id: 'brick', name: 'Brick & Cream' }),
+  Object.freeze({ id: 'lake', name: 'Lake & Silver' }),
+]);
+
 const PUBLIC_RIVAL_EVENT_FIELDS = new Set([
   'type', 'playerId', 'cardId', 'kind', 'target', 'outcome', 'department', 'program',
   'targetPlayerId', 'reason', 'winnerId', 'round', 'year', 'roundOfYear', 'stage',

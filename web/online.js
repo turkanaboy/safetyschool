@@ -59,7 +59,7 @@ export function createOnlineService(client) {
 
     async lobbies() {
       return value(await client.from('lobbies')
-        .select('id,invite_code,host_user_id,status,created_at,lobby_members(user_id,seat_index,is_ready,profiles(display_name,role))')
+        .select('id,invite_code,host_user_id,status,created_at,lobby_members(user_id,seat_index,is_ready,setup,profiles(display_name,role))')
         .eq('status', 'waiting').order('created_at', { ascending: false }));
     },
 
@@ -69,6 +69,10 @@ export function createOnlineService(client) {
 
     async joinLobby(code) {
       return value(await client.rpc('join_lobby', { p_invite_code: normalizeLobbyCode(code) }))[0];
+    },
+
+    async saveSetup(lobbyId, setup) {
+      return value(await client.rpc('set_lobby_setup', { p_lobby_id: lobbyId, p_setup: structuredClone(setup) }))[0];
     },
 
     async setReady(lobbyId, ready) {
@@ -81,8 +85,12 @@ export function createOnlineService(client) {
 
     async matchViews() {
       return value(await client.from('match_views')
-        .select('match_id,version,view,updated_at,matches(status,updated_at)')
+        .select('match_id,version,view,updated_at,matches(status,updated_at,content_set_id)')
         .order('updated_at', { ascending: false }));
+    },
+
+    async matchContent(matchId) {
+      return value(await client.rpc('get_match_card_set', { p_match_id: matchId }));
     },
 
     async startMatch(lobbyId) {

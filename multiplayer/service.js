@@ -15,10 +15,6 @@ function requireUuid(value, name) {
   return value;
 }
 
-function profileOf(member) {
-  return Array.isArray(member.profiles) ? member.profiles[0] : member.profiles;
-}
-
 function seedValue() {
   return crypto.getRandomValues(new Uint32Array(1))[0];
 }
@@ -79,15 +75,15 @@ export function createMatchService({ content, store, randomSeed = seedValue, ran
         if (!lobby || lobby.status !== 'waiting') throw new Error('That lobby is no longer waiting.');
         if (lobby.host_user_id !== userId) throw new Error('Only the lobby host can start the match.');
         const members = lobby.lobby_members ?? [];
-        if (members.length < 2 || !members.every(({ is_ready }) => is_ready)) {
-          throw new Error('At least two humans must join and every human must be ready.');
+        if (members.length < 2 || !members.every(({ is_ready, setup }) => is_ready && setup)) {
+          throw new Error('At least two humans must save a founding plan and mark ready.');
         }
         const created = createMatchRuntime({
           seed: randomSeed(),
           members: members.map((member) => ({
             userId: member.user_id,
             seat: member.seat_index,
-            name: profileOf(member)?.display_name ?? 'President',
+            setup: structuredClone(member.setup),
           })),
         }, content);
         const views = matchViews(created.state, created.meta, content, { events: created.events });

@@ -7,8 +7,8 @@ import { renderOnlineManagement } from '../web/online-management.js';
 
 const content = loadContent();
 const members = [
-  { userId: 'human-1', name: 'Founders Green', seat: 0 },
-  { userId: 'human-2', name: 'Safety State', seat: 1 },
+  { userId: 'human-1', seat: 0, setup: { schoolName: 'Founders Green', mascot: 'owl', color: 'pine', upgrades: { academics: 2, administration: 1 } } },
+  { userId: 'human-2', seat: 1, setup: { schoolName: 'Safety State', mascot: 'bison', color: 'lake', upgrades: { admissions: 2, studentAffairs: 1 } } },
 ];
 
 test('multiplayer management surfaces use the filtered seat view', () => {

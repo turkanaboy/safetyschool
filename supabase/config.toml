@@ -1,0 +1,5 @@
+
+[functions.owner-content]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/owner-content/index.ts"
