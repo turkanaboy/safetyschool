@@ -209,11 +209,21 @@ async function loadDashboard(days = 30) {
 }
 
 async function loadContent() {
+  if (busy) return;
   busy = true;
   message = '';
   render();
   try {
     contentOverview = await owner.content('overview');
+    const existingId = contentOverview.drafts[0]?.id;
+    draft = existingId
+      ? await owner.content('loadDraft', { cardSetId: existingId })
+      : await owner.content('createDraft');
+    selectedCardId = null;
+    if (!existingId) {
+      contentOverview = await owner.content('overview');
+      message = 'Editable draft created from the active card set.';
+    }
   } catch (error) {
     message = error.message;
   } finally {

@@ -65,6 +65,9 @@ test('owner card studio exposes structured card and effect editing controls', as
   assert.match(app, /Save and validate the draft before publishing/);
   assert.match(app, /draftDirty/);
   assert.match(app, /Published decks are immutable/);
+  assert.match(app, /contentOverview\.drafts\[0\]\?\.id/);
+  assert.match(app, /await owner\.content\('createDraft'\)/);
+  assert.match(app, /async function loadContent\(\) {\s+if \(busy\) return;/);
 });
 
 test('owner dashboard completion rate handles empty and active windows', () => {
