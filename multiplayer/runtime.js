@@ -20,6 +20,23 @@ function agentFor(rival) {
   return createAgent(rival.archetype, { seed: rival.agentSeed });
 }
 
+export function appendMatchHistory(meta, state, events) {
+  // ponytail: the fixed 30-round game keeps embedded history bounded; query match_actions if game length becomes configurable.
+  return {
+    ...meta,
+    history: [...(meta.history ?? []), {
+      round: state.round,
+      events: structuredClone(events),
+      players: Object.fromEntries(state.players.map((player) => [player.id, {
+        treasury: player.treasury,
+        students: player.students,
+        reputation: player.reputation,
+        alumni: player.alumni,
+      }])),
+    }],
+  };
+}
+
 function settleAiDecisions(inputState, meta, content) {
   let state = inputState;
   const events = [];
@@ -75,10 +92,11 @@ export function createMatchRuntime({ seed, members }, content) {
     return agentFor(rival).setup(rival.id, rival.name);
   });
   const created = createGame({ seed, players, programsEnabled: true }, content);
+  const meta = appendMatchHistory({ schemaVersion: 1, humans, rivals }, created.state, created.events);
   return {
     state: created.state,
     events: created.events,
-    meta: { schemaVersion: 1, humans, rivals },
+    meta,
   };
 }
 
@@ -102,6 +120,16 @@ export function matchViews(state, meta, content, { submittedUserIds = [], events
       waitingFor,
       canStartRound: state.phase === 'ready' && !state.finished,
       latestEvents: normalizeHistoryEvents(events, member.playerId),
+      history: (meta.history ?? []).map((entry) => ({
+        round: entry.round,
+        events: normalizeHistoryEvents(entry.events, member.playerId),
+        own: structuredClone(entry.players[member.playerId]),
+      })),
+      lineup: state.players.filter(({ id }) => id !== member.playerId).map((player) => {
+        const rival = meta.rivals.find(({ id }) => id === player.id);
+        return { id: player.id, name: player.name, archetype: rival?.archetype ?? 'human' };
+      }),
+      standings: state.standings ? structuredClone(state.standings) : [],
       players: state.players.map(({ id, name, seat, active }) => ({ id, name, seat, active })),
     }];
   }));

@@ -91,9 +91,7 @@
 .online-match-rail .online-match-choice { padding: 8px; font-size: .72rem; }
 .online-match-record h2:not(:first-child) { margin-top: 18px; }
 .online-match-hud { display: grid; grid-template-columns: minmax(220px, 1fr) auto; }
-.online-turn-guide { display: grid; gap: 4px; }
-.online-turn-guide small { color: #e7c56f; font-size: .62rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
-.online-turn-guide strong { font: 700 .95rem Georgia, serif; }
+.online-match-hud .management__actions { grid-template-columns: repeat(5, minmax(88px, 1fr)); }
 .online-match-hud .management__summary { min-width: 440px; }
 .online-game-shell[aria-busy="true"] button, .online-game-shell[aria-busy="true"] input { pointer-events: none; opacity: .72; }
 
@@ -121,5 +119,7 @@
   .online-campus-map { width: 100%; }
   .online-match-rail { overflow: visible; }
   .online-match-hud { grid-template-columns: 1fr; }
+  .online-match-hud .management__actions { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .online-match-hud .management__actions button { min-width: 0; padding-inline: 4px; font-size: .65rem; }
   .online-match-hud .management__summary { min-width: 0; grid-template-columns: repeat(2, 1fr); justify-content: stretch; }
 }
