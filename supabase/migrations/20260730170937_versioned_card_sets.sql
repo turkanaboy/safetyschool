@@ -28,17 +28,7 @@ set search_path = ''
 as $$
 begin
   if old.status = 'published' then
-    if tg_op = 'DELETE' then
-      raise exception 'Published card sets are immutable' using errcode = '23514';
-    end if;
-    if new.deck <> old.deck
-      or new.content_hash <> old.content_hash
-      or new.version <> old.version
-      or new.created_by <> old.created_by
-      or new.created_at <> old.created_at
-      or new.status <> old.status then
-      raise exception 'Published card sets are immutable' using errcode = '23514';
-    end if;
+    raise exception 'Published card sets are immutable' using errcode = '23514';
   end if;
   return new;
 end;

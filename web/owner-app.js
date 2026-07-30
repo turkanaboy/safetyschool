@@ -18,6 +18,7 @@ let message = '';
 let section = 'dashboard';
 let contentOverview = null;
 let draft = null;
+let draftDirty = false;
 let selectedDeck = 'fortuneCards';
 let selectedCardId = null;
 
@@ -133,7 +134,7 @@ function renderEffects(card) {
     <div class="owner-effect__fields">${Object.entries(effect).filter(([key]) => key !== 'type').map(([key, value]) => effectField(index, key, value)).join('')}</div>
     <p>${escapeHtml(vocabulary[effect.type] ?? 'This modifier is not in the allowed vocabulary.')}</p>
     <label>Advanced replacement (optional)<textarea name="effectReplacement.${index}" rows="4" placeholder='{"type":"${escapeHtml(effect.type)}", ...}'></textarea></label>
-    <button type="button" class="owner-danger" data-remove-effect="${index}">Remove effect</button>
+    <button type="button" class="owner-danger" data-remove-effect="${index}" ${draftDirty ? 'disabled' : ''}>Remove effect</button>
   </fieldset>`).join('');
 }
 
@@ -144,12 +145,12 @@ function renderCardEditor() {
   if (!card) return '<p class="owner-empty">This deck has no cards. Duplicate a card before removing the final entry.</p>';
   return `<div class="owner-editor">
     <aside class="owner-card-list" aria-label="${deckLabels[selectedDeck]} cards">
-      ${cards.map((item) => `<button data-card-id="${escapeHtml(item.id)}" ${item.id === card.id ? 'aria-current="true"' : ''}><small>${escapeHtml(item.id)}</small>${escapeHtml(item.name)}</button>`).join('')}
+      ${cards.map((item) => `<button data-card-id="${escapeHtml(item.id)}" ${item.id === card.id ? 'aria-current="true"' : ''} ${draftDirty && item.id !== card.id ? 'disabled title="Save this card before switching."' : ''}><small>${escapeHtml(item.id)}</small>${escapeHtml(item.name)}</button>`).join('')}
     </aside>
     <form class="owner-card-form" id="owner-card-form">
       <div class="owner-editor__actions">
-        <button type="button" class="owner-secondary" data-duplicate-card>Duplicate card</button>
-        <button type="button" class="owner-danger" data-remove-card>Remove card</button>
+        <button type="button" class="owner-secondary" data-duplicate-card ${draftDirty ? 'disabled' : ''}>Duplicate card</button>
+        <button type="button" class="owner-danger" data-remove-card ${draftDirty ? 'disabled' : ''}>Remove card</button>
       </div>
       <div class="owner-form-grid">
         <label>Card ID<input name="id" value="${escapeHtml(card.id)}" required></label>
@@ -159,7 +160,7 @@ function renderCardEditor() {
         <label class="owner-span">Flavor text<textarea name="flavor" rows="4">${escapeHtml(card.flavor ?? '')}</textarea></label>
         ${'prepHint' in card ? `<label class="owner-span">Preparation hint<textarea name="prepHint" rows="3">${escapeHtml(card.prepHint ?? '')}</textarea></label>` : ''}
       </div>
-      <section class="owner-effects"><div class="owner-panel__heading"><div><p class="owner-kicker">Closed vocabulary</p><h2>Effects</h2></div><button type="button" class="owner-secondary" data-add-effect>Add effect</button></div>${renderEffects(card)}</section>
+      <section class="owner-effects"><div class="owner-panel__heading"><div><p class="owner-kicker">Closed vocabulary</p><h2>Effects</h2></div><button type="button" class="owner-secondary" data-add-effect ${draftDirty ? 'disabled' : ''}>Add effect</button></div>${renderEffects(card)}</section>
       <button type="submit" ${busy ? 'disabled' : ''}>Save and validate draft</button>
     </form>
   </div>`;
@@ -179,9 +180,9 @@ function renderCards() {
       <div><small>Active set</small><strong>${active ? `Version ${active.version}` : 'Loading…'}</strong></div>
       <label>Draft<select id="owner-draft-select"><option value="">Choose a draft</option>${draftList.map((item) => `<option value="${item.id}" ${draft?.id === item.id ? 'selected' : ''}>Version ${item.version} · ${date(item.updatedAt)}</option>`).join('')}</select></label>
       <button id="owner-new-draft" ${busy ? 'disabled' : ''}>New draft from active</button>
-      ${draft ? `<button id="owner-publish" class="owner-publish" ${busy ? 'disabled' : ''}>Publish version ${draft.version}</button>` : ''}
+      ${draft ? `<button id="owner-publish" class="owner-publish" ${busy || draftDirty ? 'disabled' : ''} ${draftDirty ? 'title="Save and validate before publishing."' : ''}>Publish version ${draft.version}</button>` : ''}
     </section>
-    ${draft ? `<nav class="owner-deck-tabs" aria-label="Card decks">${Object.keys(deckLabels).map((key) => `<button data-deck="${key}" ${key === selectedDeck ? 'aria-current="page"' : ''}>${deckLabels[key]} <span>${draft.deck[key].length}</span></button>`).join('')}</nav>${renderCardEditor()}`
+    ${draft ? `<nav class="owner-deck-tabs" aria-label="Card decks">${Object.keys(deckLabels).map((key) => `<button data-deck="${key}" ${key === selectedDeck ? 'aria-current="page"' : ''} ${draftDirty && key !== selectedDeck ? 'disabled title="Save this card before switching decks."' : ''}>${deckLabels[key]} <span>${draft.deck[key].length}</span></button>`).join('')}</nav>${renderCardEditor()}`
       : '<section class="owner-panel"><p class="owner-empty">Create a draft or choose an existing one to begin editing.</p></section>'}
   </main>`;
 }
@@ -257,6 +258,7 @@ root.addEventListener('submit', async (event) => {
       const savedId = applyCardForm(event.target).id;
       draft = await owner.content('saveDraft', { cardSetId: draft.id, deck: draft.deck });
       selectedCardId = savedId;
+      draftDirty = false;
       contentOverview = await owner.content('overview');
       message = 'Draft saved and canonical validation passed.';
     } catch (error) {
@@ -288,15 +290,23 @@ root.addEventListener('change', (event) => {
   if (event.target.id === 'owner-draft-select' && event.target.value) {
     busy = true;
     owner.content('loadDraft', { cardSetId: event.target.value })
-      .then((value) => { draft = value; selectedCardId = null; message = ''; })
+      .then((value) => { draft = value; draftDirty = false; selectedCardId = null; message = ''; })
       .catch((error) => { message = error.message; })
       .finally(() => { busy = false; render(); });
   }
   if (event.target.matches('[data-effect-type]')) {
     const index = Number(event.target.dataset.effectType);
     currentCard().effects[index] = { type: event.target.value, value: 1 };
+    draftDirty = true;
     render();
   }
+});
+
+root.addEventListener('input', (event) => {
+  if (!event.target.closest('#owner-card-form')) return;
+  draftDirty = true;
+  root.querySelectorAll('[data-deck], [data-card-id], [data-duplicate-card], [data-remove-card], [data-add-effect], [data-remove-effect], [data-effect-type], #owner-publish')
+    .forEach((button) => { button.disabled = true; });
 });
 
 root.addEventListener('click', async (event) => {
@@ -327,12 +337,14 @@ root.addEventListener('click', async (event) => {
     copy.name = `${copy.name} (Copy)`;
     draft.deck[selectedDeck].push(copy);
     selectedCardId = copy.id;
+    draftDirty = true;
     render();
     return;
   }
   if (event.target.closest('[data-remove-card]')) {
     draft.deck[selectedDeck] = draft.deck[selectedDeck].filter(({ id }) => id !== selectedCardId);
     selectedCardId = draft.deck[selectedDeck][0]?.id ?? null;
+    draftDirty = true;
     render();
     return;
   }
@@ -340,12 +352,14 @@ root.addEventListener('click', async (event) => {
     const vocabulary = selectedDeck === 'fortuneCards' || selectedDeck === 'crisisCards'
       ? draft.deck.playerCardEffectVocabulary : draft.deck.effectTypeVocabulary;
     currentCard().effects.push({ type: Object.keys(vocabulary)[0], value: 1 });
+    draftDirty = true;
     render();
     return;
   }
   const removeEffect = event.target.closest('[data-remove-effect]');
   if (removeEffect) {
     currentCard().effects.splice(Number(removeEffect.dataset.removeEffect), 1);
+    draftDirty = true;
     render();
     return;
   }
@@ -353,6 +367,7 @@ root.addEventListener('click', async (event) => {
     busy = true;
     try {
       draft = await owner.content('createDraft');
+      draftDirty = false;
       contentOverview = await owner.content('overview');
       selectedCardId = null;
       message = 'Draft created from the active published deck.';
@@ -365,10 +380,16 @@ root.addEventListener('click', async (event) => {
     return;
   }
   if (event.target.id === 'owner-publish') {
+    if (draftDirty) {
+      message = 'Save and validate the draft before publishing.';
+      render();
+      return;
+    }
     busy = true;
     try {
       const published = await owner.content('publish', { cardSetId: draft.id });
       draft = null;
+      draftDirty = false;
       contentOverview = await owner.content('overview');
       message = `Version ${published.version} is active for new matches.`;
     } catch (error) {
@@ -385,6 +406,7 @@ root.addEventListener('click', async (event) => {
     dashboard = null;
     contentOverview = null;
     draft = null;
+    draftDirty = false;
     message = '';
     render();
   }

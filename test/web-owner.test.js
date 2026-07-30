@@ -62,6 +62,8 @@ test('owner card studio exposes structured card and effect editing controls', as
   assert.match(app, /data-remove-card/);
   assert.match(app, /data-add-effect/);
   assert.match(app, /Save and validate draft/);
+  assert.match(app, /Save and validate the draft before publishing/);
+  assert.match(app, /draftDirty/);
   assert.match(app, /Published decks are immutable/);
 });
 
