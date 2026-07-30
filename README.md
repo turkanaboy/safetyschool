@@ -1,6 +1,6 @@
 # Safety School
 
-Safety School is a satirical university-management board game. The current playable build is a complete solo experience: one player develops a campus against three deterministic AI rivals across a full game. Phase 3 multiplayer infrastructure is now in progress.
+Safety School is a satirical university-management board game with complete solo and server-authoritative multiplayer loops.
 
 ## Play locally
 
@@ -26,9 +26,11 @@ See [docs/phase-2-completion.md](docs/phase-2-completion.md) for the completion 
 
 ## Phase 3 multiplayer
 
-The current multiplayer build adds guest Supabase sessions, private realtime lobbies, server-authoritative match creation, synchronized turn allocation, AI-filled open seats, reconnectable match state, and the full Briefing, Actions, Programs, Rivals, and Board Book navigation for two to four humans.
+The multiplayer build adds guest Supabase sessions, private realtime lobbies, synchronized founding plans and turns, AI-filled open seats, reconnectable match state, and the full Briefing, Actions, Programs, Rivals, and Board Book navigation for two to four humans. Matches pin an immutable card version when they start.
 
 Open `http://127.0.0.1:4173/online.html` after starting the local server. See [docs/phase-3-foundation.md](docs/phase-3-foundation.md) for the architecture, live schema, deployment checklist, and next implementation boundary.
+
+The designated permanent owner can open `http://127.0.0.1:4173/owner.html` to view aggregate game health and manage versioned card drafts. Owner sign-in uses a one-time email link; players still need no account.
 
 ## Verification
 
