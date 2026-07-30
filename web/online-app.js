@@ -3,6 +3,12 @@ import { validateContent } from '/engine/content.js';
 import { dumpRankings } from '/game.js';
 import { renderOnlineManagement } from '/online-management.js';
 import {
+  annualReport,
+  emergencySaleOptions,
+  finalIssue,
+  presentationRecords,
+} from '/presentation.js';
+import {
   applyCampusEnvironment,
   campusPresentation,
   clearCampusEnvironment,
@@ -18,6 +24,10 @@ import {
 } from '/online.js';
 
 const root = document.querySelector('#online-root');
+const eventDialog = document.querySelector('#online-event-dialog');
+const eventTitle = document.querySelector('#online-event-title');
+const eventContent = document.querySelector('#online-event-content');
+const eventActions = document.querySelector('#online-event-actions');
 const client = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 const online = createOnlineService(client);
 const pendingCodeKey = 'safety-school:pending-lobby-code';
@@ -41,6 +51,19 @@ let previousDepartmentLevels = null;
 let stopCampusMotion = null;
 let activeManagementSection = null;
 let selectedOnlineRival = null;
+let presentationMatchId = null;
+let presentationVersion = null;
+let presentationQueue = [];
+let currentPresentation = null;
+
+const departmentNames = {
+  academics: 'Academics',
+  administration: 'Administration',
+  admissions: 'Admissions',
+  athletics: 'Athletics',
+  marketing: 'Marketing',
+  studentAffairs: 'Student Affairs',
+};
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (character) => ({
@@ -77,6 +100,11 @@ function renderMessage() {
 function resetMatchShell() {
   stopCampusMotion?.();
   stopCampusMotion = null;
+  presentationMatchId = null;
+  presentationVersion = null;
+  presentationQueue = [];
+  currentPresentation = null;
+  if (eventDialog.open) eventDialog.close();
   root.className = 'online-shell';
   document.body.classList.remove('online-match-page');
   clearCampusEnvironment();
@@ -136,12 +164,92 @@ function titleCase(value) {
   return String(value ?? '').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (letter) => letter.toUpperCase());
 }
 
-function formatMoney(value) {
-  return `${value < 0 ? '−' : ''}$${Math.abs(value).toFixed(1)}m`;
+function formatMoney(value, signed = false) {
+  return `${value < 0 ? '−' : signed && value > 0 ? '+' : ''}$${Math.abs(value).toFixed(1)}m`;
 }
 
 function formatNumber(value) {
   return Math.round(value).toLocaleString();
+}
+
+function schoolName(view, playerId) {
+  return view.players.find((player) => player.id === playerId)?.name ?? playerId;
+}
+
+function percentChange(value) {
+  return `${Math.round(Math.abs(value - 1) * 100)}% ${value >= 1 ? 'increase' : 'decrease'}`;
+}
+
+function headlineEffect(effect) {
+  if (effect.type === 'noOp') return ['neutral', 'No rule change this term.'];
+  if (effect.type === 'tuitionMultiplier') return [effect.value >= 1 ? 'positive' : 'negative', `Tuition income: ${percentChange(effect.value)}.`];
+  if (effect.type === 'poolAllotmentMultiplier') return [effect.value >= 1 ? 'positive' : 'negative', `Applicant pool: ${percentChange(effect.value)}.`];
+  if (effect.type === 'allUpkeepMultiplier') return [effect.value <= 1 ? 'positive' : 'negative', `All upkeep: ${percentChange(effect.value)}.`];
+  if (effect.type === 'departmentUpkeepMultiplier') return [effect.value <= 1 ? 'positive' : 'negative', `${departmentNames[effect.department]} upkeep: ${percentChange(effect.value)}.`];
+  if (effect.type === 'allPullMultiplier') return [effect.value >= 1 ? 'positive' : 'negative', `All recruiting pull: ${percentChange(effect.value)}.`];
+  if (effect.type === 'campaignPullMultiplier') return [effect.value >= 1 ? 'positive' : 'negative', `Campaign recruiting pull: ${percentChange(effect.value)}.`];
+  if (effect.type === 'programPullMultiplier') return [effect.value >= 1 ? 'positive' : 'negative', `${titleCase(effect.program)} recruiting pull: ${percentChange(effect.value)} for campuses offering it.`];
+  if (effect.type === 'yieldMultiplier') return [effect.value >= 1 ? 'positive' : 'negative', `All recruiting yield: ${percentChange(effect.value)}.`];
+  if (effect.type === 'reputationDeltaAll') return [effect.value >= 0 ? 'positive' : 'negative', `Every campus: ${effect.value > 0 ? '+' : ''}${effect.value} reputation.`];
+  if (effect.type === 'moneyDeltaAll') return [effect.value >= 0 ? 'positive' : 'negative', `Every campus: ${formatMoney(effect.value, true)} treasury.`];
+  if (effect.type === 'programMoneyDelta') return [effect.value >= 0 ? 'positive' : 'negative', `${titleCase(effect.program)} campuses: ${formatMoney(effect.value, true)} treasury.`];
+  if (effect.type === 'poachCostDelta') return [effect.value <= 0 ? 'positive' : 'negative', `Recruiting from a rival costs ${formatMoney(Math.abs(effect.value))} ${effect.value > 0 ? 'more' : 'less'} this term.`];
+  return ['neutral', titleCase(effect.type)];
+}
+
+function effectResult(effect) {
+  if (effect.skipped) return `${effect.program ? titleCase(effect.program) : 'Required Program'} not held`;
+  if (effect.result === null) return effect.scalable ? `Scaled by ×${Number(effect.multiplier.toFixed(2))}` : 'Rule modifier applied';
+  if (effect.type === 'money') return formatMoney(effect.result, true);
+  if (effect.type.includes('Conversions') || effect.type.includes('Capacity') || effect.type === 'extraActionsNextRound') {
+    return `${effect.result > 0 ? '+' : ''}${formatNumber(effect.result)}`;
+  }
+  if (effect.type.includes('retention') || effect.type.includes('YieldFloor') || effect.type === 'upkeepRefundFraction') {
+    return `${effect.result > 0 ? '+' : ''}${Number((effect.result * 100).toFixed(2))} points`;
+  }
+  if (effect.type.includes('Multiplier') || effect.type.includes('Penalty')) return `×${Number(effect.result.toFixed(2))}`;
+  return `${effect.result > 0 ? '+' : ''}${Number(effect.result.toFixed(2))}`;
+}
+
+function cardPresentation(record, view) {
+  const own = record.kind === 'playerCard';
+  const type = record.cardKind === 'fortune' ? 'Fortune — helps that campus' : 'Crisis — hurts that campus';
+  const effects = record.effects?.map((effect) => `<li class="is-${record.cardKind === 'fortune' ? 'positive' : 'negative'} ${effect.skipped ? 'is-skipped' : ''}"><span>${escapeHtml(effect.label)}</span><strong>${escapeHtml(effectResult(effect))}</strong></li>`).join('') ?? '';
+  return `<div class="ceremony ceremony--${escapeHtml(record.cardKind)}">
+    <p class="eyebrow">Resolved card · Severity ${record.severity}</p>
+    <div class="card-orientation">
+      <span><small>Applies to</small><strong>${escapeHtml(schoolName(view, record.playerId))}${own ? ' (you)' : ''}</strong></span>
+      <span><small>Card type</small><strong>${escapeHtml(type)}</strong></span>
+      <span><small>Target</small><strong>${escapeHtml(record.target ? departmentNames[record.target] : 'Campus-wide')}</strong></span>
+      <span><small>Your action</small><strong>${own && record.cardKind === 'crisis' ? 'Resolved unless Administration offered a choice' : 'None — already resolved'}</strong></span>
+    </div>
+    ${record.flavor ? `<blockquote>${escapeHtml(record.flavor)}</blockquote>` : ''}
+    ${own ? `<div class="calculation-strip"><span><small>${escapeHtml(departmentNames[record.target])} level</small><strong>${record.targetLevel}</strong></span><span><small>Building factor</small><strong>×${Number(record.targetFactor.toFixed(2))}</strong></span><span><small>Severity factor</small><strong>×${Number(record.severityFactor.toFixed(2))}</strong></span><span><small>Final factor</small><strong>×${Number(record.factor.toFixed(2))}</strong></span></div><ul class="effect-list">${effects}</ul>` : '<p>A consequential rival card changed the competitive field. Its public outcome is in the Board Book.</p>'}
+  </div>`;
+}
+
+function annualReportPresentation(view) {
+  const report = annualReport(view, content, view.year);
+  return `<div class="ceremony ceremony--report">
+    <p class="eyebrow">Mandatory report to the Board</p>
+    <div class="report-grid">
+      <span><small>Tuition collected</small><strong>${formatMoney(report.tuition)}</strong></span>
+      <span><small>Upkeep paid</small><strong>${formatMoney(report.upkeep)}</strong></span>
+      <span><small>Students recruited</small><strong>${formatNumber(report.recruiting)}</strong></span>
+      <span><small>Graduates</small><strong>${formatNumber(report.graduates)}</strong></span>
+      <span><small>Donations &amp; grants</small><strong>${formatMoney(report.donations)}</strong></span>
+      <span><small>Closing treasury</small><strong>${formatMoney(report.endingTreasury)}</strong></span>
+      <span><small>DUMP standing</small><strong>${report.dumpRank ? `#${report.dumpRank}` : 'Unranked'}</strong></span>
+    </div>
+    ${report.nextDisruption ? `<section class="disruption-brief"><small>Public outlook · Year ${report.year + 1}</small><strong>${escapeHtml(report.nextDisruption.title)}</strong><p>${escapeHtml(report.nextDisruption.prepHint)}</p></section>` : ''}
+    ${report.privateLookahead ? `<section class="disruption-brief disruption-brief--private"><small>Administration foresight · confidential</small><strong>${escapeHtml(report.privateLookahead.title)}</strong><p>${escapeHtml(report.privateLookahead.prepHint)}</p></section>` : ''}
+  </div>`;
+}
+
+function finalPresentation(view) {
+  const issue = finalIssue(view, content);
+  const scores = issue.scoreboard.map((school) => `<li><span>${school.playerId === issue.winnerId ? '<b>WINNER</b> ' : ''}${escapeHtml(school.name)}${school.playerId === view.own.id ? ' (You)' : ''}</span><strong>${school.score.toFixed(1)}</strong></li>`).join('');
+  return `<div class="ceremony ceremony--final"><p class="special-issue">DUMP Rankings Special Issue</p><p class="eyebrow">Definitive Ultimate Marketing Ploy</p><h3>${issue.winnerId === view.own.id ? 'You win' : `${escapeHtml(issue.winnerName)} wins`}</h3><p>${escapeHtml(issue.explanation)}</p>${scores ? `<section><h4>Final Institutional Health Scores</h4><ol class="history-list final-score-list">${scores}</ol></section>` : ''}${issue.turningPoints.length ? `<section><h4>Turning points</h4><ol class="history-list">${issue.turningPoints.map((point) => `<li>${escapeHtml(point)}</li>`).join('')}</ol></section>` : ''}</div>`;
 }
 
 function termLabel(view, next = false) {
@@ -150,6 +258,74 @@ function termLabel(view, next = false) {
   const year = Math.ceil(round / roundsPerYear);
   const term = ((round - 1) % roundsPerYear) + 1;
   return `Year ${year} · Term ${term}`;
+}
+
+function showNextPresentation() {
+  if (eventDialog.open || !presentationQueue.length) return;
+  currentPresentation = presentationQueue.shift();
+  const { item, view } = currentPresentation;
+
+  if (item.kind === 'headline') {
+    const effects = item.effects.map((effect) => {
+      const [tone, description] = headlineEffect(effect);
+      return `<li class="is-${tone}">${escapeHtml(description)}</li>`;
+    }).join('');
+    eventTitle.textContent = item.title;
+    eventContent.innerHTML = `<div class="ceremony ceremony--headline"><p class="eyebrow">Shared Headline · applies to every active campus</p><div class="card-orientation"><span><small>Who it affects</small><strong>Every active campus</strong></span><span><small>When</small><strong>This term only</strong></span><span><small>Your action</small><strong>Review, then choose actions</strong></span></div><blockquote>${escapeHtml(item.flavor)}</blockquote><section class="headline-rule"><strong>Rule in effect</strong><ul>${effects}</ul></section></div>`;
+  } else if (item.kind === 'playerCard' || item.kind === 'rivalCard') {
+    eventTitle.textContent = item.title;
+    eventContent.innerHTML = cardPresentation(item, view);
+  } else if (item.kind === 'rivalAusterity') {
+    eventTitle.textContent = `${schoolName(view, item.playerId)} enters austerity`;
+    eventContent.innerHTML = '<div class="ceremony ceremony--crisis"><p class="eyebrow">Emergency bulletin</p><p>A rival board has begun selling assets. Its exact treasury remains private.</p></div>';
+  } else if (item.kind === 'closure') {
+    eventTitle.textContent = item.playerIds.length === 1 ? 'A campus closes' : 'Campuses close';
+    eventContent.innerHTML = `<div class="ceremony ceremony--crisis"><p class="eyebrow">Field update</p><p>${escapeHtml(item.playerIds.map((id) => schoolName(view, id)).join(', '))} ${item.playerIds.length === 1 ? 'has' : 'have'} left the competition.</p></div>`;
+  } else if (item.kind === 'annualReport') {
+    eventTitle.textContent = `Year ${view.year} Annual Report`;
+    eventContent.innerHTML = annualReportPresentation(view);
+  } else {
+    eventTitle.textContent = 'The final issue';
+    eventContent.innerHTML = finalPresentation(view);
+  }
+
+  eventActions.innerHTML = `<button class="primary-button" type="button" data-continue-online-event>${item.kind === 'headline' ? 'Continue to Actions' : item.kind === 'finalIssue' ? 'Return to final campus' : 'Continue'}</button>`;
+  eventDialog.showModal();
+  eventActions.querySelector('button').focus();
+}
+
+function enqueuePresentations(record) {
+  if (presentationMatchId !== record.match_id) {
+    presentationMatchId = record.match_id;
+    presentationVersion = null;
+    presentationQueue = [];
+    currentPresentation = null;
+    if (eventDialog.open) eventDialog.close();
+  }
+  if (presentationVersion === record.version) return;
+  presentationVersion = record.version;
+  const records = presentationRecords(record.view.latestEvents ?? [], {
+    humanId: record.view.own.id,
+    content,
+  });
+  presentationQueue.push(...records.queue.map((item) => ({ item, view: record.view })));
+  showNextPresentation();
+}
+
+function completePresentation() {
+  if (!currentPresentation) return;
+  const headline = currentPresentation.item.kind === 'headline';
+  currentPresentation = null;
+  eventDialog.close();
+  if (headline) requestAnimationFrame(() => root.querySelector('.online-match-action button, .online-match-action input')?.focus());
+}
+
+function renderEmergencyMeeting(view) {
+  const options = emergencySaleOptions(view, content);
+  return `<div class="emergency-layout">
+    <section class="emergency-heading"><p class="eyebrow">Required decision</p><h2>Emergency Board Meeting</h2><p>The campus is below the solvency threshold. Sell one eligible building level at a time until the engine clears the emergency.</p><div class="emergency-status"><span><small>Current treasury</small><strong>${formatMoney(view.own.treasury)}</strong></span><span><small>Reputation</small><strong>${formatNumber(view.own.reputation)}</strong></span></div></section>
+    <section><h3>Choose the next fire sale</h3><div class="emergency-options">${options.map((option, index) => `<button type="button" data-online-action="match-decision" data-command-index="${index}"><span><strong>${escapeHtml(departmentNames[option.department])}</strong><small>Level ${view.own.departments[option.department]} → ${view.own.departments[option.department] - 1}</small></span><span><b>${formatMoney(option.recovery)} recovered</b><small>${formatMoney(option.upkeepSaved)} upkeep saved · −${option.reputationLost} reputation</small></span></button>`).join('')}</div><p class="projection-note">If another sale is required, the meeting remains available from Briefing.</p></section>
+  </div>`;
 }
 
 function renderProfileRecovery() {
@@ -212,13 +388,16 @@ function actionLabel(option, view) {
   return titleCase(action.type);
 }
 
-function managementButton(section, label) {
-  return `<button type="button" data-online-section="${section}" aria-pressed="${activeManagementSection === section}">${label}</button>`;
+function managementButton(section, label, emergency) {
+  const disabled = emergency && section !== 'briefing';
+  return `<button type="button" data-online-section="${section}" aria-pressed="${activeManagementSection === section}" ${disabled ? 'disabled' : ''}>${emergency && section === 'briefing' ? 'Emergency Board Meeting' : label}</button>`;
 }
 
 function updateManagementTray(section) {
   const record = matchRecords.find((candidate) => candidate.match_id === activeMatchId);
   if (!record || !content) return;
+  const emergency = record.view.pendingDecision?.type === 'forcedSale';
+  if (emergency) section = 'briefing';
   const tray = root.querySelector('#online-management-tray');
   const trayContent = root.querySelector('#online-management-content');
   if (section === 'actions') {
@@ -237,7 +416,7 @@ function updateManagementTray(section) {
   tray?.setAttribute('aria-hidden', String(!activeManagementSection));
   if (trayContent) {
     trayContent.innerHTML = activeManagementSection
-      ? renderOnlineManagement(activeManagementSection, record.view, content, selectedOnlineRival)
+      ? emergency ? renderEmergencyMeeting(record.view) : renderOnlineManagement(activeManagementSection, record.view, content, selectedOnlineRival)
       : '';
   }
 }
@@ -246,6 +425,8 @@ function renderMatch(record) {
   stopCampusMotion?.();
   stopCampusMotion = null;
   const view = record.view;
+  const emergency = view.pendingDecision?.type === 'forcedSale';
+  if (emergency && activeManagementSection !== 'briefing') activeManagementSection = null;
   const status = matchStatus(record) ?? record.status;
   const term = termLabel(view);
   const nextTerm = termLabel(view, true);
@@ -278,6 +459,8 @@ function renderMatch(record) {
       .filter(({ option }) => option.action.type !== 'bank')
       .map(({ option, index }) => `<label class="online-match-choice"><input type="checkbox" name="actionIndex" value="${index}"><span>${escapeHtml(actionLabel(option, view))}</span></label>`).join('');
     action = `<section class="online-card online-match-action"><p class="eyebrow">Your allocation</p><h2>Choose up to ${view.legal.maxActions} actions</h2><p>Use each action type once. Leave slots empty to bank them.</p><form id="match-allocation-form" class="online-match-choices">${options}<button class="primary-button" type="submit">Submit allocation</button></form></section>`;
+  } else if (emergency) {
+    action = `<section class="online-card online-match-action online-emergency-card"><p class="eyebrow">Required decision</p><h2>Emergency Board Meeting</h2><p>Your campus is insolvent. Review the exact recovery, upkeep relief, and reputation cost before authorizing a fire sale.</p><button class="primary-button" type="button" data-online-section="briefing">Open board meeting</button></section>`;
   } else if (view.legal?.kind === 'decision') {
     const choices = view.legal.commands.map((command, index) => `<button class="primary-button" type="button" data-online-action="match-decision" data-command-index="${index}">${escapeHtml(command.choice ? titleCase(command.choice) : `Sell ${titleCase(command.department)}`)}</button>`).join('');
     action = `<section class="online-card online-match-action"><p class="eyebrow">Your decision</p><h2>${escapeHtml(titleCase(view.pendingDecision?.type))}</h2><div class="startup-actions">${choices}</div></section>`;
@@ -301,11 +484,11 @@ function renderMatch(record) {
     </main>
     <footer class="management online-match-hud">
       <nav class="management__actions" aria-label="Campus management">
-        ${managementButton('briefing', 'Briefing')}
-        ${managementButton('actions', 'Actions')}
-        ${managementButton('programs', 'Programs')}
-        ${managementButton('rivals', 'Rivals')}
-        ${managementButton('boardBook', 'Board Book')}
+        ${managementButton('briefing', 'Briefing', emergency)}
+        ${managementButton('actions', 'Actions', emergency)}
+        ${managementButton('programs', 'Programs', emergency)}
+        ${managementButton('rivals', 'Rivals', emergency)}
+        ${managementButton('boardBook', 'Board Book', emergency)}
       </nav>
       <section class="management__summary" aria-label="Campus resources">
         <span><small>Treasury</small><b>${formatMoney(view.own.treasury)}</b></span>
@@ -315,7 +498,7 @@ function renderMatch(record) {
       </section>
       <section class="management__tray" id="online-management-tray" aria-hidden="${!activeManagementSection}">
         <button class="tray-handle" type="button" data-online-section="${activeManagementSection ?? 'briefing'}">Close</button>
-        <div id="online-management-content">${activeManagementSection ? renderOnlineManagement(activeManagementSection, view, content, selectedOnlineRival) : ''}</div>
+        <div id="online-management-content">${activeManagementSection ? emergency ? renderEmergencyMeeting(view) : renderOnlineManagement(activeManagementSection, view, content, selectedOnlineRival) : ''}</div>
       </section>
     </footer>`;
 
@@ -326,6 +509,7 @@ function renderMatch(record) {
     }
   }
   previousDepartmentLevels = { ...view.own.departments };
+  enqueuePresentations(record);
 }
 
 function render() {
@@ -540,6 +724,15 @@ root.addEventListener('click', (event) => {
     }
   });
 });
+
+eventActions.addEventListener('click', (event) => {
+  if (event.target.closest('[data-continue-online-event]')) completePresentation();
+});
+eventDialog.addEventListener('cancel', (event) => {
+  event.preventDefault();
+  completePresentation();
+});
+eventDialog.addEventListener('close', showNextPresentation);
 
 window.addEventListener('pagehide', () => {
   stopSubscription?.();

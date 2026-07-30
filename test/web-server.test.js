@@ -132,6 +132,20 @@ test('campus gameplay shell keeps the approved board and exposes the five manage
   });
 });
 
+test('multiplayer stages resolved events and keeps emergency meetings recoverable', async () => {
+  await withServer(async (port) => {
+    const shell = await fetchFrom(port, '/online.html');
+    const app = await fetchFrom(port, '/online-app.js');
+
+    assert.match(shell.body, /id="online-event-dialog"/);
+    assert.match(shell.body, /aria-labelledby="online-event-title"/);
+    assert.match(app.body, /presentationRecords/);
+    assert.match(app.body, /Emergency Board Meeting/);
+    assert.match(app.body, /emergencySaleOptions/);
+    assert.match(app.body, /data-online-section="briefing"/);
+  });
+});
+
 test('university quad manifest is the sole runtime asset contract', async () => {
   await withServer(async (port) => {
     const manifestResponse = await fetchFrom(port, '/assets/university-quad/Runtime/runtime-manifest.json');

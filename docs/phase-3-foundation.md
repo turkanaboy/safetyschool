@@ -1,7 +1,7 @@
 # Phase 3 Multiplayer Runtime
 
 Updated: 2026-07-29
-Branch: `codex/phase-3-management-surfaces`
+Branch: `codex/phase-3-event-presentations`
 
 ## Decision
 
@@ -37,6 +37,8 @@ The browser never uploads the Phase 2 local save or authors canonical match stat
 - Primary multiplayer navigation for Briefing, Actions, Programs, Rivals, and Board Book.
 - A reconciled operating forecast, Program portfolio, public rival profiles, card history, annual reports, and DUMP trends derived from each seat's filtered view.
 - Server-side cumulative match history that produces a separate privacy-filtered record for every human seat; raw rival treasury and private disruption foresight never enter another player's view.
+- Staged multiplayer Headline, Fortune, Crisis, annual-report/disruption, austerity, closure, and final-result presentations derived from the same filtered event records as solo play.
+- Recoverable Emergency Board Meetings with authoritative sale recovery, upkeep relief, and reputation costs; players can return to campus and reopen the meeting from Briefing.
 - A Vercel static build that packages the solo game, multiplayer UI, engine/content assets, and pinned Supabase browser client into `dist/`.
 - A solo-game entry point linking to multiplayer without changing the validated Phase 2 mechanics.
 
@@ -91,9 +93,9 @@ npm.cmd run validate:content
 npm.cmd test
 ```
 
-The focused Phase 3 checks cover guest-session metadata, lobby commands, authoritative runtime and service transitions, cumulative filtered history, private observations, multiplayer management views, match command payloads, online static routes, and the existing campus shell contract.
+The focused Phase 3 checks cover guest-session metadata, lobby commands, authoritative runtime and service transitions, cumulative filtered history, private observations, multiplayer management and event views, recoverable emergency decisions, match command payloads, online static routes, and the existing campus shell contract.
 
-Manual browser acceptance completed for this slice:
+Manual browser acceptance completed for the preceding campus and management slices:
 
 - `/online.html` renders a meaningful signed-out screen without a browser error or error overlay.
 - The solo setup still renders and exposes the Online multiplayer link.
@@ -107,10 +109,9 @@ Manual browser acceptance completed for this slice:
 
 ## Next implementation boundary
 
-The authoritative campus board and core management surfaces are now complete. The next implementation boundary is:
+The authoritative campus board, core management surfaces, and consequential event presentations are now complete. The next implementation boundary is:
 
-1. Add the staged headline/disruption and emergency-board presentation used by solo play.
-2. Replace the fixed balanced founding plan with a synchronized pregame setup flow.
-3. Exercise elimination, human-owned pending decisions, annual reports, final results, and reconnects across a complete browser-played game.
+1. Replace the fixed balanced founding plan with a synchronized pregame setup flow.
+2. Exercise elimination, human-owned pending decisions, annual reports, final results, and reconnects across a complete browser-played game.
 
 The owner dashboard and copy-only card editor remain later Phase 3 slices. New card modifier types and continuous dollar-allocation budgeting remain separate mechanics work because either requires a complete engine/content contract and rebalance pass.
