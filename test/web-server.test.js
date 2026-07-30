@@ -143,6 +143,8 @@ test('multiplayer stages resolved events and keeps emergency meetings recoverabl
     assert.match(app.body, /Emergency Board Meeting/);
     assert.match(app.body, /emergencySaleOptions/);
     assert.match(app.body, /data-online-section="briefing"/);
+    assert.match(app.body, /id="lobby-setup-form"/);
+    assert.match(app.body, /Assign exactly three free founding levels/);
   });
 });
 

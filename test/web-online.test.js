@@ -41,6 +41,12 @@ test('online service validates lobby codes and sends scoped auth and RPC request
   await assert.rejects(online.joinLobby('bad'), /six-character/i);
   const lobby = await online.joinLobby('w7k9rp');
   await online.createLobby();
+  await online.saveSetup('lobby-1', {
+    schoolName: 'Founders Green',
+    mascot: 'owl',
+    color: 'pine',
+    upgrades: { academics: 2, administration: 1 },
+  });
   await online.setReady('lobby-1', 1);
   await online.leaveLobby('lobby-1');
 
@@ -50,6 +56,12 @@ test('online service validates lobby codes and sends scoped auth and RPC request
     ['signInAnonymously', { options: { data: { display_name: 'Founders Green' } } }],
     ['rpc', 'join_lobby', { p_invite_code: 'W7K9RP' }],
     ['rpc', 'create_lobby', undefined],
+    ['rpc', 'set_lobby_setup', { p_lobby_id: 'lobby-1', p_setup: {
+      schoolName: 'Founders Green',
+      mascot: 'owl',
+      color: 'pine',
+      upgrades: { academics: 2, administration: 1 },
+    } }],
     ['rpc', 'set_lobby_ready', { p_lobby_id: 'lobby-1', p_ready: true }],
     ['rpc', 'leave_lobby', { p_lobby_id: 'lobby-1' }],
   ]);
@@ -145,7 +157,7 @@ test('online service scopes profile, lobby, and realtime observations', async ()
     ['eq', 'profiles', 'id', 'user-1'],
     ['single', 'profiles'],
     ['from', 'lobbies'],
-    ['select', 'lobbies', 'id,invite_code,host_user_id,status,created_at,lobby_members(user_id,seat_index,is_ready,profiles(display_name,role))'],
+    ['select', 'lobbies', 'id,invite_code,host_user_id,status,created_at,lobby_members(user_id,seat_index,is_ready,setup,profiles(display_name,role))'],
     ['eq', 'lobbies', 'status', 'waiting'],
     ['order', 'lobbies', 'created_at', { ascending: false }],
     ['execute', 'lobbies'],

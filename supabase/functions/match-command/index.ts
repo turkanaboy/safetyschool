@@ -25,7 +25,7 @@ function createStore(admin) {
   return {
     async getLobby(lobbyId) {
       return value(await admin.from('lobbies')
-        .select('id,host_user_id,status,lobby_members(user_id,seat_index,is_ready,profiles(display_name))')
+        .select('id,host_user_id,status,lobby_members(user_id,seat_index,is_ready,setup)')
         .eq('id', lobbyId).single());
     },
 

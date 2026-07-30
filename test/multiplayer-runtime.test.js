@@ -13,8 +13,8 @@ import {
 
 const content = loadContent();
 const members = [
-  { userId: 'human-1', name: 'Founders Green', seat: 0 },
-  { userId: 'human-2', name: 'Safety State', seat: 1 },
+  { userId: 'human-1', seat: 0, setup: { schoolName: 'Founders Green', mascot: 'owl', color: 'pine', upgrades: { academics: 2, administration: 1 } } },
+  { userId: 'human-2', seat: 1, setup: { schoolName: 'Safety State', mascot: 'bison', color: 'lake', upgrades: { admissions: 2, studentAffairs: 1 } } },
 ];
 
 test('multiplayer runtime creates four fair seats and player-filtered views', () => {
@@ -26,10 +26,13 @@ test('multiplayer runtime creates four fair seats and player-filtered views', ()
     { id: 'human-2', seat: 1 },
   ]);
   assert.equal(created.meta.rivals.length, 2);
+  assert.equal(created.state.players[0].name, 'Founders Green');
+  assert.equal(created.state.players[0].departments.academics, 3);
 
   created.state.players[1].treasury = 123.45;
   const views = matchViews(created.state, created.meta, content, { events: created.events });
   assert.equal(views['human-1'].own.id, 'human-1');
+  assert.deepEqual(views['human-1'].identity, { mascot: 'owl', color: 'pine' });
   assert.equal(views['human-1'].roundsPerYear, content.config.gameLength.roundsPerYear);
   assert.equal(views['human-1'].history.length, 1);
   assert.equal(views['human-1'].lineup.length, 3);
@@ -57,6 +60,16 @@ test('multiplayer runtime creates four fair seats and player-filtered views', ()
   const finalView = matchViews(created.state, created.meta, content)['human-1'];
   assert.deepEqual(Object.keys(finalView.finalScores).sort(), created.state.players.map(({ id }) => id).sort());
   assert.ok(Object.values(finalView.finalScores).every(Number.isFinite));
+});
+
+test('multiplayer runtime rejects incomplete founding plans', () => {
+  assert.throws(() => createMatchRuntime({
+    seed: 42,
+    members: [
+      members[0],
+      { userId: 'human-2', seat: 1, setup: { ...members[1].setup, mascot: 'dragon' } },
+    ],
+  }, content), /mascot/i);
 });
 
 test('a term waits for every active human allocation before resolving', () => {

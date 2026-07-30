@@ -32,6 +32,28 @@
 .online-seat small { margin-top: 4px; color: #aac0b5; font-size: .68rem; }
 .online-seat--ai { opacity: .68; }
 .online-note { color: #94ada1 !important; font-size: .65rem; }
+.online-setup-card { display: grid; grid-template-columns: minmax(180px, .55fr) minmax(0, 1.45fr); gap: 24px; }
+.online-setup-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.online-setup-form fieldset { min-width: 0; padding: 0; border: 0; margin: 0; }
+.online-setup-form legend, .online-setup-name { color: #e1c476; font-size: .68rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.online-setup-name { grid-column: 1 / -1; }
+.online-setup-name input { width: 100%; padding: 10px; border: 1px solid rgb(255 255 255 / 28%); border-radius: 8px; margin-top: 5px; color: white; background: rgb(2 18 12 / 55%); font: inherit; text-transform: none; }
+.online-setup-presets { display: grid; gap: 5px; margin-top: 5px; }
+.online-setup-presets label { cursor: pointer; }
+.online-setup-presets input { position: absolute; opacity: 0; }
+.online-setup-presets span { display: flex; align-items: center; gap: 7px; padding: 7px 9px; border: 1px solid rgb(255 255 255 / 14%); border-radius: 7px; color: #c3d3cb; font-size: .7rem; }
+.online-setup-presets input:checked + span { border-color: #d9ad4f; color: white; background: rgb(217 173 79 / 13%); }
+.online-setup-presets input:focus-visible + span { outline: 2px solid #f1d07d; outline-offset: 2px; }
+.online-setup-levels { display: grid; grid-column: 1 / -1; gap: 5px; }
+.online-setup-levels header, .online-setup-level { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.online-setup-levels header { padding-bottom: 5px; border-bottom: 1px solid rgb(255 255 255 / 14%); color: #f1d07d; font-size: .72rem; }
+.online-setup-level { min-height: 38px; padding: 5px 0; border-bottom: 1px solid rgb(255 255 255 / 8%); }
+.online-setup-level > span:first-child strong, .online-setup-level > span:first-child small { display: block; }
+.online-setup-level small { margin-top: 2px; color: #9fb6aa; font-size: .62rem; }
+.online-setup-level > span:last-child { display: grid; grid-template-columns: 32px 28px 32px; align-items: center; text-align: center; }
+.online-setup-level button { width: 30px; height: 30px; border: 1px solid rgb(255 255 255 / 24%); border-radius: 6px; color: white; background: rgb(0 0 0 / 18%); cursor: pointer; }
+.online-setup-level button:disabled { cursor: default; opacity: .35; }
+.online-setup-form > button { grid-column: 1 / -1; justify-self: start; }
 .online-match-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .online-match-stats article { display: grid; gap: 4px; padding: 12px 14px; border: 1px solid rgb(255 255 255 / 14%); border-radius: 10px; background: rgb(0 0 0 / 14%); }
 .online-match-stats span { color: #a9beb4; font-size: .64rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
@@ -96,7 +118,8 @@
 .online-game-shell[aria-busy="true"] button, .online-game-shell[aria-busy="true"] input { pointer-events: none; opacity: .72; }
 
 @media (max-width: 680px) {
-  .online-grid, .online-seats, .online-match-grid { grid-template-columns: 1fr; }
+  .online-grid, .online-seats, .online-match-grid, .online-setup-card, .online-setup-form { grid-template-columns: 1fr; }
+  .online-setup-name, .online-setup-levels, .online-setup-form > button { grid-column: 1; }
   .online-match-stats { grid-template-columns: 1fr 1fr; }
   .online-header, .online-invite, .online-lobby-actions { align-items: stretch; flex-direction: column; }
   .online-header > div:last-child, .online-invite > div:last-child, .online-lobby-actions > div:last-child { flex-wrap: wrap; }

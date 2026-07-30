@@ -1,7 +1,7 @@
 # Phase 3 Multiplayer Runtime
 
-Updated: 2026-07-29
-Branch: `codex/phase-3-event-presentations`
+Updated: 2026-07-30
+Branch: `codex/phase-3-pregame-setup`
 
 ## Decision
 
@@ -25,7 +25,8 @@ The browser never uploads the Phase 2 local save or authors canonical match stat
 - Four visible seats, with AI placeholders for empty seats.
 - Realtime refresh for lobby membership, readiness, and cancellation.
 - Host-only match start after at least two humans join and every human is ready.
-- Fair four-campus initialization, with deterministic AI schools filling open seats and the same balanced founding plan for every human.
+- Synchronized pregame setup for each human's school name, mascot, campus colors, and rules-validated three-level founding plan; saving changes automatically clears Ready.
+- Fair four-campus initialization, with each human's saved plan applied by the engine and deterministic AI schools filling open seats.
 - Server-authoritative begin-term, allocation, pending-decision, completion, and winner transitions.
 - Idempotent command IDs, compare-and-swap match versions, append-only command history, and reconnectable snapshots.
 - Per-player realtime views that omit rivals' private treasury and private-card information.
@@ -48,8 +49,8 @@ Applied Supabase migrations live in `supabase/migrations/` and create:
 
 - `profiles`: one profile per authenticated user, with `player` or `owner` role.
 - `lobbies`: host-owned waiting/cancelled lobbies with unique invite codes.
-- `lobby_members`: one human per lobby seat, seats zero through three, with readiness state.
-- `create_lobby`, `join_lobby`, `set_lobby_ready`, and `leave_lobby`: authenticated RPC mutations.
+- `lobby_members`: one human per lobby seat, seats zero through three, with validated setup and readiness state.
+- `create_lobby`, `join_lobby`, `set_lobby_setup`, `set_lobby_ready`, and `leave_lobby`: authenticated RPC mutations.
 - `matches` and `match_seats`: the match lifecycle and immutable human/AI seat identities.
 - `match_snapshots`: the current canonical engine state and server metadata.
 - `match_views`: one filtered observation per human, published through Realtime.
@@ -109,9 +110,8 @@ Manual browser acceptance completed for the preceding campus and management slic
 
 ## Next implementation boundary
 
-The authoritative campus board, core management surfaces, and consequential event presentations are now complete. The next implementation boundary is:
+The authoritative campus board, core management surfaces, consequential event presentations, and synchronized pregame setup are now complete. The next implementation boundary is:
 
-1. Replace the fixed balanced founding plan with a synchronized pregame setup flow.
-2. Exercise elimination, human-owned pending decisions, annual reports, final results, and reconnects across a complete browser-played game.
+1. Exercise elimination, human-owned pending decisions, annual reports, final results, and reconnects across a complete browser-played game.
 
 The owner dashboard and copy-only card editor remain later Phase 3 slices. New card modifier types and continuous dollar-allocation budgeting remain separate mechanics work because either requires a complete engine/content contract and rebalance pass.

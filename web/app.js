@@ -1,6 +1,8 @@
 import { canonicalStringify, validateContent } from '/engine/content.js';
 import { ENGINE_VERSION } from '/engine/index.js';
 import {
+  CAMPUS_COLORS,
+  MASCOTS,
   RIVAL_SCHOOLS,
   allocationSummary,
   buildingManagement,
@@ -62,16 +64,8 @@ const archetypeNames = {
   fortress: 'Student fortress',
   oracle: 'Administrative oracle',
 };
-const mascots = [
-  { id: 'owl', name: 'Night Owl', mark: 'OW' },
-  { id: 'fox', name: 'Red Fox', mark: 'FX' },
-  { id: 'bison', name: 'Golden Bison', mark: 'BI' },
-];
-const colors = [
-  { id: 'pine', name: 'Pine & Gold' },
-  { id: 'brick', name: 'Brick & Cream' },
-  { id: 'lake', name: 'Lake & Silver' },
-];
+const mascots = MASCOTS;
+const colors = CAMPUS_COLORS;
 
 const startup = document.querySelector('#startup');
 const setupPanel = document.querySelector('#setup-panel');
