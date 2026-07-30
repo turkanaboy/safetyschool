@@ -15,6 +15,18 @@ let session = null;
 let dashboard = null;
 let busy = true;
 let message = '';
+let section = 'dashboard';
+let contentOverview = null;
+let draft = null;
+let selectedDeck = 'fortuneCards';
+let selectedCardId = null;
+
+const deckLabels = {
+  annualDisruptions: 'Annual disruptions',
+  fortuneCards: 'Fortunes',
+  crisisCards: 'Crises',
+  headlines: 'Headlines',
+};
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (character) => ({
@@ -59,6 +71,13 @@ function activityBars(rows) {
   }).join('');
 }
 
+function ownerNav() {
+  return `<nav class="owner-nav" aria-label="Owner operations">
+    <button data-owner-section="dashboard" ${section === 'dashboard' ? 'aria-current="page"' : ''}>Game health</button>
+    <button data-owner-section="cards" ${section === 'cards' ? 'aria-current="page"' : ''}>Card studio</button>
+  </nav>`;
+}
+
 function renderDashboard() {
   const { lobbies, matches, players, daily, recentMatches, windowDays } = dashboard;
   const rows = recentMatches.map((match) => `<tr>
@@ -76,6 +95,7 @@ function renderDashboard() {
         <button class="owner-secondary" id="owner-sign-out">Sign out</button>
       </div>
     </header>
+    ${ownerNav()}
     ${message ? `<p class="owner-message" role="status">${escapeHtml(message)}</p>` : ''}
     <section class="owner-metrics" aria-label="Operations summary">
       ${metric('Matches started', matches.started, `${matches.active} active now`)}
@@ -96,8 +116,79 @@ function renderDashboard() {
   </main>`;
 }
 
+function effectField(effectIndex, key, value) {
+  if (typeof value === 'boolean') return `<label>${escapeHtml(key)}<select name="effect.${effectIndex}.${escapeHtml(key)}"><option value="true" ${value ? 'selected' : ''}>True</option><option value="false" ${!value ? 'selected' : ''}>False</option></select></label>`;
+  if (typeof value === 'number') return `<label>${escapeHtml(key)}<input type="number" step="any" name="effect.${effectIndex}.${escapeHtml(key)}" value="${value}" required></label>`;
+  if (value && typeof value === 'object') return `<label>${escapeHtml(key)}<textarea name="effect.${effectIndex}.${escapeHtml(key)}" rows="3">${escapeHtml(JSON.stringify(value, null, 2))}</textarea></label>`;
+  return `<label>${escapeHtml(key)}<input name="effect.${effectIndex}.${escapeHtml(key)}" value="${escapeHtml(value ?? '')}" required></label>`;
+}
+
+function renderEffects(card) {
+  const vocabulary = selectedDeck === 'fortuneCards' || selectedDeck === 'crisisCards'
+    ? draft.deck.playerCardEffectVocabulary
+    : draft.deck.effectTypeVocabulary;
+  return card.effects.map((effect, index) => `<fieldset class="owner-effect">
+    <legend>Effect ${index + 1}</legend>
+    <label>Modifier<select data-effect-type="${index}">${Object.keys(vocabulary).map((type) => `<option value="${type}" ${effect.type === type ? 'selected' : ''}>${type}</option>`).join('')}</select></label>
+    <div class="owner-effect__fields">${Object.entries(effect).filter(([key]) => key !== 'type').map(([key, value]) => effectField(index, key, value)).join('')}</div>
+    <p>${escapeHtml(vocabulary[effect.type] ?? 'This modifier is not in the allowed vocabulary.')}</p>
+    <label>Advanced replacement (optional)<textarea name="effectReplacement.${index}" rows="4" placeholder='{"type":"${escapeHtml(effect.type)}", ...}'></textarea></label>
+    <button type="button" class="owner-danger" data-remove-effect="${index}">Remove effect</button>
+  </fieldset>`).join('');
+}
+
+function renderCardEditor() {
+  const cards = draft.deck[selectedDeck];
+  if (!selectedCardId || !cards.some(({ id }) => id === selectedCardId)) selectedCardId = cards[0]?.id ?? null;
+  const card = cards.find(({ id }) => id === selectedCardId);
+  if (!card) return '<p class="owner-empty">This deck has no cards. Duplicate a card before removing the final entry.</p>';
+  return `<div class="owner-editor">
+    <aside class="owner-card-list" aria-label="${deckLabels[selectedDeck]} cards">
+      ${cards.map((item) => `<button data-card-id="${escapeHtml(item.id)}" ${item.id === card.id ? 'aria-current="true"' : ''}><small>${escapeHtml(item.id)}</small>${escapeHtml(item.name)}</button>`).join('')}
+    </aside>
+    <form class="owner-card-form" id="owner-card-form">
+      <div class="owner-editor__actions">
+        <button type="button" class="owner-secondary" data-duplicate-card>Duplicate card</button>
+        <button type="button" class="owner-danger" data-remove-card>Remove card</button>
+      </div>
+      <div class="owner-form-grid">
+        <label>Card ID<input name="id" value="${escapeHtml(card.id)}" required></label>
+        ${'target' in card ? `<label>Target<select name="target">${['random', 'admissions', 'marketing', 'academics', 'studentAffairs', 'athletics', 'administration'].map((target) => `<option value="${target}" ${card.target === target ? 'selected' : ''}>${target}</option>`).join('')}</select></label>` : ''}
+        ${'severity' in card ? `<label>Severity<select name="severity">${[1, 2, 3].map((severity) => `<option value="${severity}" ${card.severity === severity ? 'selected' : ''}>${severity}</option>`).join('')}</select></label>` : ''}
+        <label class="owner-span">Name<input name="name" value="${escapeHtml(card.name)}" required></label>
+        <label class="owner-span">Flavor text<textarea name="flavor" rows="4">${escapeHtml(card.flavor ?? '')}</textarea></label>
+        ${'prepHint' in card ? `<label class="owner-span">Preparation hint<textarea name="prepHint" rows="3">${escapeHtml(card.prepHint ?? '')}</textarea></label>` : ''}
+      </div>
+      <section class="owner-effects"><div class="owner-panel__heading"><div><p class="owner-kicker">Closed vocabulary</p><h2>Effects</h2></div><button type="button" class="owner-secondary" data-add-effect>Add effect</button></div>${renderEffects(card)}</section>
+      <button type="submit" ${busy ? 'disabled' : ''}>Save and validate draft</button>
+    </form>
+  </div>`;
+}
+
+function renderCards() {
+  const draftList = contentOverview?.drafts ?? [];
+  const active = contentOverview?.active;
+  root.innerHTML = `<main class="owner-dashboard">
+    <header class="owner-header">
+      <div><p class="owner-kicker">Office of the proprietor</p><h1>Card studio</h1><p>Published decks are immutable. Changes apply only to matches created after activation.</p></div>
+      <div class="owner-header__actions"><button class="owner-secondary" id="owner-sign-out">Sign out</button></div>
+    </header>
+    ${ownerNav()}
+    ${message ? `<p class="owner-message" role="status">${escapeHtml(message)}</p>` : ''}
+    <section class="owner-panel owner-content-bar">
+      <div><small>Active set</small><strong>${active ? `Version ${active.version}` : 'Loading…'}</strong></div>
+      <label>Draft<select id="owner-draft-select"><option value="">Choose a draft</option>${draftList.map((item) => `<option value="${item.id}" ${draft?.id === item.id ? 'selected' : ''}>Version ${item.version} · ${date(item.updatedAt)}</option>`).join('')}</select></label>
+      <button id="owner-new-draft" ${busy ? 'disabled' : ''}>New draft from active</button>
+      ${draft ? `<button id="owner-publish" class="owner-publish" ${busy ? 'disabled' : ''}>Publish version ${draft.version}</button>` : ''}
+    </section>
+    ${draft ? `<nav class="owner-deck-tabs" aria-label="Card decks">${Object.keys(deckLabels).map((key) => `<button data-deck="${key}" ${key === selectedDeck ? 'aria-current="page"' : ''}>${deckLabels[key]} <span>${draft.deck[key].length}</span></button>`).join('')}</nav>${renderCardEditor()}`
+      : '<section class="owner-panel"><p class="owner-empty">Create a draft or choose an existing one to begin editing.</p></section>'}
+  </main>`;
+}
+
 function render() {
   if (!session || !dashboard) renderSignIn();
+  else if (section === 'cards') renderCards();
   else renderDashboard();
 }
 
@@ -116,7 +207,66 @@ async function loadDashboard(days = 30) {
   }
 }
 
+async function loadContent() {
+  busy = true;
+  message = '';
+  render();
+  try {
+    contentOverview = await owner.content('overview');
+  } catch (error) {
+    message = error.message;
+  } finally {
+    busy = false;
+    render();
+  }
+}
+
+function currentCard() {
+  return draft?.deck[selectedDeck].find(({ id }) => id === selectedCardId);
+}
+
+function applyCardForm(form) {
+  const card = currentCard();
+  const data = new FormData(form);
+  card.id = String(data.get('id')).trim();
+  card.name = String(data.get('name')).trim();
+  if ('target' in card) card.target = data.get('target');
+  if ('severity' in card) card.severity = Number(data.get('severity'));
+  if ('flavor' in card) card.flavor = String(data.get('flavor') ?? '');
+  if ('prepHint' in card) card.prepHint = String(data.get('prepHint') ?? '');
+  card.effects.forEach((effect, index) => {
+    for (const key of Object.keys(effect).filter((name) => name !== 'type')) {
+      const raw = data.get(`effect.${index}.${key}`);
+      if (typeof effect[key] === 'number') effect[key] = Number(raw);
+      else if (typeof effect[key] === 'boolean') effect[key] = raw === 'true';
+      else if (effect[key] && typeof effect[key] === 'object') effect[key] = JSON.parse(raw);
+      else effect[key] = String(raw);
+    }
+    const replacement = String(data.get(`effectReplacement.${index}`) ?? '').trim();
+    if (replacement) card.effects[index] = JSON.parse(replacement);
+  });
+  return card;
+}
+
 root.addEventListener('submit', async (event) => {
+  if (event.target.id === 'owner-card-form') {
+    event.preventDefault();
+    busy = true;
+    message = '';
+    try {
+      const savedId = applyCardForm(event.target).id;
+      draft = await owner.content('saveDraft', { cardSetId: draft.id, deck: draft.deck });
+      selectedCardId = savedId;
+      contentOverview = await owner.content('overview');
+      message = 'Draft saved and canonical validation passed.';
+    } catch (error) {
+      message = error.message;
+    } finally {
+      busy = false;
+      render();
+    }
+    return;
+  }
   if (event.target.id !== 'owner-sign-in') return;
   event.preventDefault();
   busy = true;
@@ -135,15 +285,109 @@ root.addEventListener('submit', async (event) => {
 
 root.addEventListener('change', (event) => {
   if (event.target.id === 'owner-window') loadDashboard(event.target.value);
+  if (event.target.id === 'owner-draft-select' && event.target.value) {
+    busy = true;
+    owner.content('loadDraft', { cardSetId: event.target.value })
+      .then((value) => { draft = value; selectedCardId = null; message = ''; })
+      .catch((error) => { message = error.message; })
+      .finally(() => { busy = false; render(); });
+  }
+  if (event.target.matches('[data-effect-type]')) {
+    const index = Number(event.target.dataset.effectType);
+    currentCard().effects[index] = { type: event.target.value, value: 1 };
+    render();
+  }
 });
 
 root.addEventListener('click', async (event) => {
-  if (event.target.id !== 'owner-sign-out') return;
-  await owner.signOut();
-  session = null;
-  dashboard = null;
-  message = '';
-  render();
+  const sectionButton = event.target.closest('[data-owner-section]');
+  if (sectionButton) {
+    section = sectionButton.dataset.ownerSection;
+    message = '';
+    render();
+    if (section === 'cards' && !contentOverview) loadContent();
+    return;
+  }
+  const deckButton = event.target.closest('[data-deck]');
+  if (deckButton) {
+    selectedDeck = deckButton.dataset.deck;
+    selectedCardId = null;
+    render();
+    return;
+  }
+  const cardButton = event.target.closest('[data-card-id]');
+  if (cardButton) {
+    selectedCardId = cardButton.dataset.cardId;
+    render();
+    return;
+  }
+  if (event.target.closest('[data-duplicate-card]')) {
+    const copy = structuredClone(currentCard());
+    copy.id = `${copy.id}-COPY-${String(Date.now()).slice(-4)}`;
+    copy.name = `${copy.name} (Copy)`;
+    draft.deck[selectedDeck].push(copy);
+    selectedCardId = copy.id;
+    render();
+    return;
+  }
+  if (event.target.closest('[data-remove-card]')) {
+    draft.deck[selectedDeck] = draft.deck[selectedDeck].filter(({ id }) => id !== selectedCardId);
+    selectedCardId = draft.deck[selectedDeck][0]?.id ?? null;
+    render();
+    return;
+  }
+  if (event.target.closest('[data-add-effect]')) {
+    const vocabulary = selectedDeck === 'fortuneCards' || selectedDeck === 'crisisCards'
+      ? draft.deck.playerCardEffectVocabulary : draft.deck.effectTypeVocabulary;
+    currentCard().effects.push({ type: Object.keys(vocabulary)[0], value: 1 });
+    render();
+    return;
+  }
+  const removeEffect = event.target.closest('[data-remove-effect]');
+  if (removeEffect) {
+    currentCard().effects.splice(Number(removeEffect.dataset.removeEffect), 1);
+    render();
+    return;
+  }
+  if (event.target.id === 'owner-new-draft') {
+    busy = true;
+    try {
+      draft = await owner.content('createDraft');
+      contentOverview = await owner.content('overview');
+      selectedCardId = null;
+      message = 'Draft created from the active published deck.';
+    } catch (error) {
+      message = error.message;
+    } finally {
+      busy = false;
+      render();
+    }
+    return;
+  }
+  if (event.target.id === 'owner-publish') {
+    busy = true;
+    try {
+      const published = await owner.content('publish', { cardSetId: draft.id });
+      draft = null;
+      contentOverview = await owner.content('overview');
+      message = `Version ${published.version} is active for new matches.`;
+    } catch (error) {
+      message = error.message;
+    } finally {
+      busy = false;
+      render();
+    }
+    return;
+  }
+  if (event.target.id === 'owner-sign-out') {
+    await owner.signOut();
+    session = null;
+    dashboard = null;
+    contentOverview = null;
+    draft = null;
+    message = '';
+    render();
+  }
 });
 
 client.auth.onAuthStateChange((_event, nextSession) => {
@@ -158,4 +402,3 @@ else {
   busy = false;
   render();
 }
-

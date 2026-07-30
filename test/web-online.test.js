@@ -77,6 +77,19 @@ test('online service surfaces Supabase failures', async () => {
   await assert.rejects(online.createLobby(), /Database unavailable/);
 });
 
+test('online service fetches only the current member match card set', async () => {
+  const calls = [];
+  const online = createOnlineService({
+    async rpc(name, payload) {
+      calls.push([name, payload]);
+      return { data: { cardSetId: 'set-1', contentHash: 'abc', deck: {} }, error: null };
+    },
+  });
+
+  assert.equal((await online.matchContent('match-1')).cardSetId, 'set-1');
+  assert.deepEqual(calls, [['get_match_card_set', { p_match_id: 'match-1' }]]);
+});
+
 test('online service surfaces Edge Function response details', async () => {
   const online = createOnlineService({
     functions: {

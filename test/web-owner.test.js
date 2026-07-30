@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import { completionRate, createOwnerService } from '../web/owner.js';
@@ -20,6 +21,12 @@ test('owner service keeps account creation disabled and requests aggregate metri
         return { data: {}, error: null };
       },
     },
+    functions: {
+      async invoke(name, options) {
+        calls.push(['invoke', name, options]);
+        return { data: { active: { version: 1 } }, error: null };
+      },
+    },
     async rpc(name, payload) {
       calls.push(['rpc', name, payload]);
       return { data: { windowDays: 30 }, error: null };
@@ -30,6 +37,7 @@ test('owner service keeps account creation disabled and requests aggregate metri
   assert.equal((await owner.session()).user.id, 'owner-1');
   await owner.signIn(' owner@example.com ', 'https://safetyschoolgame.com/owner.html');
   assert.deepEqual(await owner.dashboard(30), { windowDays: 30 });
+  assert.deepEqual(await owner.content('overview'), { active: { version: 1 } });
   await owner.signOut();
 
   assert.deepEqual(calls, [
@@ -42,8 +50,19 @@ test('owner service keeps account creation disabled and requests aggregate metri
       },
     }],
     ['rpc', 'owner_dashboard', { p_days: 30 }],
+    ['invoke', 'owner-content', { body: { action: 'overview' } }],
     ['signOut'],
   ]);
+});
+
+test('owner card studio exposes structured card and effect editing controls', async () => {
+  const app = await readFile(new URL('../web/owner-app.js', import.meta.url), 'utf8');
+  assert.match(app, /Card studio/);
+  assert.match(app, /data-duplicate-card/);
+  assert.match(app, /data-remove-card/);
+  assert.match(app, /data-add-effect/);
+  assert.match(app, /Save and validate draft/);
+  assert.match(app, /Published decks are immutable/);
 });
 
 test('owner dashboard completion rate handles empty and active windows', () => {
@@ -60,4 +79,3 @@ test('owner service surfaces authorization failures', async () => {
 
   await assert.rejects(owner.dashboard(), /Owner access required/);
 });
-
