@@ -164,7 +164,7 @@ export function validateHumanAllocation(state, meta, actorUserId, actions, conte
     if (!option) throw new Error('An allocation is no longer legal.');
     cost += option.cost;
   }
-  if (cost > observationTreasury(state, member.playerId) + 1e-9) throw new Error('Allocations exceed the available treasury.');
+  if (cost !== 0 && cost > observationTreasury(state, member.playerId) + 1e-9) throw new Error('Allocations exceed the available treasury.');
   return structuredClone(actions);
 }
 

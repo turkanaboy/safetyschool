@@ -90,6 +90,17 @@ test('a term waits for every active human allocation before resolving', () => {
   assert.ok(resolved.events.some(({ type }) => type === 'actionsResolved'));
 });
 
+test('an insolvent human can bank or sell but cannot spend', () => {
+  const created = createMatchRuntime({ seed: 42, members }, content);
+  const started = startMatchRound(created.state, created.meta, 'human-1', content);
+  started.state.players[0].treasury = -2.5;
+  const legal = matchViews(started.state, created.meta, content)['human-1'].legal.actions;
+  const sell = legal.find(({ action }) => action.type === 'sell').action;
+
+  assert.deepEqual(validateHumanAllocation(started.state, created.meta, 'human-1', [], content), []);
+  assert.deepEqual(validateHumanAllocation(started.state, created.meta, 'human-1', [sell], content), [sell]);
+});
+
 test('multiplayer commands reject outsiders and duplicate action types', () => {
   const created = createMatchRuntime({ seed: 42, members }, content);
   assert.throws(() => startMatchRound(created.state, created.meta, 'outsider', content), /match member/i);
