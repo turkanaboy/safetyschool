@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { loadContent } from '../engine/content-node.js';
 import {
+  appendMatchHistory,
   createMatchRuntime,
   matchViews,
   resolveMatchAllocation,
@@ -30,8 +31,24 @@ test('multiplayer runtime creates four fair seats and player-filtered views', ()
   const views = matchViews(created.state, created.meta, content, { events: created.events });
   assert.equal(views['human-1'].own.id, 'human-1');
   assert.equal(views['human-1'].roundsPerYear, content.config.gameLength.roundsPerYear);
+  assert.equal(views['human-1'].history.length, 1);
+  assert.equal(views['human-1'].lineup.length, 3);
+  assert.ok(Array.isArray(views['human-1'].standings));
   assert.equal('treasury' in views['human-1'].opponents.find(({ id }) => id === 'human-2'), false);
   assert.equal(JSON.stringify(views['human-1']).includes(`\"treasury\":${created.state.players[1].treasury}`), false);
+
+  const nextMeta = appendMatchHistory(created.meta, created.state, [{
+    type: 'incomeResolved',
+    players: {
+      'human-1': { tuition: 10, upkeep: 8, treasury: 52 },
+      'human-2': { tuition: 9, upkeep: 7, treasury: 123.45 },
+    },
+  }]);
+  const nextView = matchViews(created.state, nextMeta, content)['human-1'];
+  assert.equal(JSON.stringify(nextView).includes('123.45'), false);
+  assert.deepEqual(nextView.history.at(-1).events[0].players, {
+    'human-1': { tuition: 10, upkeep: 8, treasury: 52 },
+  });
 });
 
 test('a term waits for every active human allocation before resolving', () => {

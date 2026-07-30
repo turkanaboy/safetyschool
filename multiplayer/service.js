@@ -1,4 +1,5 @@
 import {
+  appendMatchHistory,
   createMatchRuntime,
   matchViews,
   resolveMatchAllocation,
@@ -49,7 +50,8 @@ export function createMatchService({ content, store, randomSeed = seedValue, ran
   }
 
   async function transition(runtime, userId, id, command, result) {
-    const views = matchViews(result.state, runtime.snapshot.meta, content, { events: result.events });
+    const meta = appendMatchHistory(runtime.snapshot.meta, result.state, result.events);
+    const views = matchViews(result.state, meta, content, { events: result.events });
     await store.commitTransition({
       matchId: runtime.match.id,
       expectedVersion: runtime.match.version,
@@ -57,7 +59,7 @@ export function createMatchService({ content, store, randomSeed = seedValue, ran
       actorUserId: userId,
       command,
       state: result.state,
-      meta: runtime.snapshot.meta,
+      meta,
       events: result.events,
       views,
       status: result.state.finished ? 'complete' : 'active',

@@ -1,5 +1,7 @@
 import { createClient } from '/vendor/supabase.js';
+import { validateContent } from '/engine/content.js';
 import { dumpRankings } from '/game.js';
+import { renderOnlineManagement } from '/online-management.js';
 import {
   applyCampusEnvironment,
   campusPresentation,
@@ -32,10 +34,13 @@ let refreshVersion = 0;
 let message = '';
 let campusRuntime = null;
 let characterRuntime = null;
+let content = null;
 let campusLoad = null;
 let campusAssetError = '';
 let previousDepartmentLevels = null;
 let stopCampusMotion = null;
+let activeManagementSection = null;
+let selectedOnlineRival = null;
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (character) => ({
@@ -83,9 +88,14 @@ function ensureCampusAssets() {
   campusLoad = Promise.all([
     fetch('/assets/university-quad/Runtime/runtime-manifest.json'),
     fetch('/assets/university-quad/Runtime/Characters/student-actions.json'),
+    fetch('/balance-config.json'),
+    fetch('/cards.json'),
   ]).then(async (responses) => {
     if (responses.some((response) => !response.ok)) throw new Error('The campus art package could not be loaded.');
-    [campusRuntime, characterRuntime] = await Promise.all(responses.map((response) => response.json()));
+    const [runtime, characters, config, cards] = await Promise.all(responses.map((response) => response.json()));
+    campusRuntime = runtime;
+    characterRuntime = characters;
+    content = validateContent(config, cards);
     campusAssetError = '';
     render();
   }).catch((error) => {
@@ -202,11 +212,34 @@ function actionLabel(option, view) {
   return titleCase(action.type);
 }
 
-function turnGuide(view, nextTerm) {
-  if (view.submitted) return 'Allocation submitted';
-  if (view.canStartRound) return `Ready for ${escapeHtml(nextTerm)}`;
-  if (view.legal) return 'Your decision is open';
-  return 'Match in progress';
+function managementButton(section, label) {
+  return `<button type="button" data-online-section="${section}" aria-pressed="${activeManagementSection === section}">${label}</button>`;
+}
+
+function updateManagementTray(section) {
+  const record = matchRecords.find((candidate) => candidate.match_id === activeMatchId);
+  if (!record || !content) return;
+  const tray = root.querySelector('#online-management-tray');
+  const trayContent = root.querySelector('#online-management-content');
+  if (section === 'actions') {
+    activeManagementSection = null;
+    tray?.setAttribute('aria-hidden', 'true');
+    root.querySelectorAll('[data-online-section]').forEach((button) => button.setAttribute('aria-pressed', 'false'));
+    const rail = root.querySelector('.online-match-rail');
+    rail?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    rail?.querySelector('button, input')?.focus();
+    return;
+  }
+  activeManagementSection = activeManagementSection === section ? null : section;
+  root.querySelectorAll('.management__actions [data-online-section]').forEach((button) => {
+    button.setAttribute('aria-pressed', String(button.dataset.onlineSection === activeManagementSection));
+  });
+  tray?.setAttribute('aria-hidden', String(!activeManagementSection));
+  if (trayContent) {
+    trayContent.innerHTML = activeManagementSection
+      ? renderOnlineManagement(activeManagementSection, record.view, content, selectedOnlineRival)
+      : '';
+  }
 }
 
 function renderMatch(record) {
@@ -216,7 +249,7 @@ function renderMatch(record) {
   const status = matchStatus(record) ?? record.status;
   const term = termLabel(view);
   const nextTerm = termLabel(view, true);
-  if (!campusRuntime || !characterRuntime) {
+  if (!campusRuntime || !characterRuntime || !content) {
     root.className = 'online-shell';
     root.innerHTML = `<span class="startup__seal" aria-hidden="true">SS</span><p class="eyebrow">Online campus</p><h1>${campusAssetError ? 'Campus art unavailable' : 'Opening your campus'}</h1><p>${escapeHtml(campusAssetError || 'Placing buildings, students, and the board for live play…')}</p>${campusAssetError ? '<button class="primary-button" type="button" data-online-action="retry-campus">Try again</button>' : ''}`;
     if (!campusAssetError) void ensureCampusAssets();
@@ -267,12 +300,22 @@ function renderMatch(record) {
       </aside>
     </main>
     <footer class="management online-match-hud">
-      <div class="online-turn-guide" aria-live="polite"><small>Live shared turn</small><strong>${turnGuide(view, nextTerm)}</strong></div>
+      <nav class="management__actions" aria-label="Campus management">
+        ${managementButton('briefing', 'Briefing')}
+        ${managementButton('actions', 'Actions')}
+        ${managementButton('programs', 'Programs')}
+        ${managementButton('rivals', 'Rivals')}
+        ${managementButton('boardBook', 'Board Book')}
+      </nav>
       <section class="management__summary" aria-label="Campus resources">
         <span><small>Treasury</small><b>${formatMoney(view.own.treasury)}</b></span>
         <span><small>Students</small><b>${formatNumber(view.own.students)}</b></span>
         <span><small>Reputation</small><b>${formatNumber(view.own.reputation)}</b></span>
         <span><small>Alumni</small><b>${formatNumber(view.own.alumni)}</b></span>
+      </section>
+      <section class="management__tray" id="online-management-tray" aria-hidden="${!activeManagementSection}">
+        <button class="tray-handle" type="button" data-online-section="${activeManagementSection ?? 'briefing'}">Close</button>
+        <div id="online-management-content">${activeManagementSection ? renderOnlineManagement(activeManagementSection, view, content, selectedOnlineRival) : ''}</div>
       </section>
     </footer>`;
 
@@ -411,6 +454,19 @@ root.addEventListener('submit', (event) => {
 });
 
 root.addEventListener('click', (event) => {
+  const rival = event.target.closest('[data-online-rival]');
+  if (rival) {
+    selectedOnlineRival = rival.dataset.onlineRival;
+    const record = matchRecords.find((candidate) => candidate.match_id === activeMatchId);
+    const trayContent = root.querySelector('#online-management-content');
+    if (record && trayContent) trayContent.innerHTML = renderOnlineManagement('rivals', record.view, content, selectedOnlineRival);
+    return;
+  }
+  const section = event.target.closest('[data-online-section]');
+  if (section) {
+    updateManagementTray(section.dataset.onlineSection);
+    return;
+  }
   const button = event.target.closest('[data-online-action]');
   if (!button) return;
   perform(async () => {

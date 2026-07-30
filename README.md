@@ -26,7 +26,7 @@ See [docs/phase-2-completion.md](docs/phase-2-completion.md) for the completion 
 
 ## Phase 3 multiplayer
 
-The current multiplayer build adds guest Supabase sessions, private realtime lobbies, server-authoritative match creation, synchronized turn allocation, AI-filled open seats, private player observations, and reconnectable match state for two to four humans.
+The current multiplayer build adds guest Supabase sessions, private realtime lobbies, server-authoritative match creation, synchronized turn allocation, AI-filled open seats, reconnectable match state, and the full Briefing, Actions, Programs, Rivals, and Board Book navigation for two to four humans.
 
 Open `http://127.0.0.1:4173/online.html` after starting the local server. See [docs/phase-3-foundation.md](docs/phase-3-foundation.md) for the architecture, live schema, deployment checklist, and next implementation boundary.
 

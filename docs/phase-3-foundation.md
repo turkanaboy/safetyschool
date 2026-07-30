@@ -1,7 +1,7 @@
 # Phase 3 Multiplayer Runtime
 
-Updated: 2026-07-21
-Branch: `codex/phase-3-campus-play`
+Updated: 2026-07-29
+Branch: `codex/phase-3-management-surfaces`
 
 ## Decision
 
@@ -34,6 +34,9 @@ The browser never uploads the Phase 2 local save or authors canonical match stat
 - Six manifest-positioned, uniquely illustrated buildings whose visible size and level follow current department state.
 - Runtime fountain, paths, moving students, frisbee, birds, flag, construction rise/dust, and prosperity/strain/austerity cues.
 - DUMP rankings, current-turn controls, match activity, and campus resources arranged around the no-scroll desktop board.
+- Primary multiplayer navigation for Briefing, Actions, Programs, Rivals, and Board Book.
+- A reconciled operating forecast, Program portfolio, public rival profiles, card history, annual reports, and DUMP trends derived from each seat's filtered view.
+- Server-side cumulative match history that produces a separate privacy-filtered record for every human seat; raw rival treasury and private disruption foresight never enter another player's view.
 - A Vercel static build that packages the solo game, multiplayer UI, engine/content assets, and pinned Supabase browser client into `dist/`.
 - A solo-game entry point linking to multiplayer without changing the validated Phase 2 mechanics.
 
@@ -88,7 +91,7 @@ npm.cmd run validate:content
 npm.cmd test
 ```
 
-The focused Phase 3 checks cover guest-session metadata, lobby commands, authoritative runtime and service transitions, private observations, match command payloads, online static routes, and the existing campus shell contract.
+The focused Phase 3 checks cover guest-session metadata, lobby commands, authoritative runtime and service transitions, cumulative filtered history, private observations, multiplayer management views, match command payloads, online static routes, and the existing campus shell contract.
 
 Manual browser acceptance completed for this slice:
 
@@ -104,11 +107,10 @@ Manual browser acceptance completed for this slice:
 
 ## Next implementation boundary
 
-The authoritative campus board is now complete for the first multiplayer slice. The next implementation boundary is:
+The authoritative campus board and core management surfaces are now complete. The next implementation boundary is:
 
-1. Bring Briefing, Programs, Rivals, and Board Book into the multiplayer shell without exposing private state.
-2. Add the staged headline/disruption and emergency-board presentation used by solo play.
-3. Replace the fixed balanced founding plan with a synchronized pregame setup flow.
-4. Exercise elimination, human-owned pending decisions, annual reports, final results, and reconnects across a complete browser-played game.
+1. Add the staged headline/disruption and emergency-board presentation used by solo play.
+2. Replace the fixed balanced founding plan with a synchronized pregame setup flow.
+3. Exercise elimination, human-owned pending decisions, annual reports, final results, and reconnects across a complete browser-played game.
 
 The owner dashboard and copy-only card editor remain later Phase 3 slices. New card modifier types and continuous dollar-allocation budgeting remain separate mechanics work because either requires a complete engine/content contract and rebalance pass.
