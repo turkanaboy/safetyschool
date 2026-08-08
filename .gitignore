@@ -3,3 +3,7 @@ dist/
 reports/*.tmp
 reports/*-failure.json
 *.log
+
+# Supabase CLI machine-local state (project ref, pooler URL) - never commit
+supabase/.temp/
+supabase/.branches/
